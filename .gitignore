@@ -7,10 +7,10 @@ release/
 Thumbs.db
 __pycache__/
 *.pyc
-pyside_app/.venv/
-pyside_app/build/
-pyside_app/dist/
-pyside_app/*.spec
-pyside_app/tools/ffmpeg.exe
-pyside_app/tools/ffprobe.exe
-pyside_app/tools/*.dll
+app/.venv/
+app/build/
+app/dist/
+app/*.spec
+app/tools/ffmpeg.exe
+app/tools/ffprobe.exe
+app/tools/*.dll

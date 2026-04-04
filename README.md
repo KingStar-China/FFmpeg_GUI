@@ -1,13 +1,22 @@
 # FFmpeg GUI
 
-当前主线版本是 `Python + PySide6`。
+当前主线版本是 `Python + PySide6`，旧的 Electron 版本已经归档，不再继续维护。
 
-## 当前主线
+## 下载
 
-- 主程序目录：`pyside_app/`
-- 当前发布版：Python 绿色版
-- GitHub Release 下载：
-  - `FFmpeg_GUI_v0.1.0_win64_portable.zip`
+当前推荐下载：
+- GitHub Release：`FFmpeg_GUI_v0.1.0_win64_portable.zip`
+- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.0>
+
+说明：
+- 这是当前唯一推荐下载的版本
+- 内置 `ffmpeg`、`ffprobe`、`mkvextract`
+- Windows 下解压后可直接运行
+
+## 主线目录
+
+- 当前主程序目录：`app/`
+- 历史归档目录：`legacy/electron/`
 
 ## 当前功能
 
@@ -25,24 +34,24 @@
 ## 运行
 
 ```powershell
-cd pyside_app
+cd app
 .\run_windows.ps1
 ```
 
 ## 打包
 
 ```powershell
-cd pyside_app
+cd app
 .\build_windows.ps1
 ```
 
 ## 仓库结构
 
-- `pyside_app/`：当前维护中的 Python + PySide6 主线
-- `legacy/electron/`：旧的 Electron + React 实现，仅作历史归档
+- `app/`：当前维护中的 Python + PySide6 主线
+- `legacy/electron/`：旧的 Electron + React 实现，已停止维护
 - `logo/`：图标资源
 
 ## 说明
 
-- 当前仓库首页和 Release 以 Python 版为准
-- Electron 版不再作为主线继续整理发布
+- 仓库首页和 Release 以 Python 版为准
+- Electron 版只保留历史代码，不再继续发布
