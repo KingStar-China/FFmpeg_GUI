@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .models import ExtractTarget, TrackInfo
-
+from .tool_paths import find_ffmpeg
 
 AUDIO_COPY_EXTENSIONS = {
     "aac": "aac",
@@ -169,7 +169,7 @@ def build_extract_invocation(track: TrackInfo, target: ExtractTarget, output_pat
     mkvextract_path = preferred_mkvextract_path(track, target)
     if mkvextract_path is not None:
         return mkvextract_path, ["tracks", track.source_path, f"{track.stream_index}:{output_path}"]
-    return "ffmpeg", build_extract_args(track, target, output_path)
+    return find_ffmpeg() or "ffmpeg", build_extract_args(track, target, output_path)
 
 
 def format_process_command(program: str, args: list[str]) -> str:

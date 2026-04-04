@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .models import MediaInfo, TrackInfo
+from .tool_paths import find_ffmpeg
 
 
 MP4_TEXT_SUBTITLE_CODECS = {
@@ -66,9 +67,7 @@ def build_mux_args(
     for track in selected_tracks:
         args.extend(["-map", f"{track.source_index}:{track.stream_index}"])
 
-    normal_video_tracks = [track for track in selected_tracks if track.kind == "video" and not track.disposition.attached_pic]
     video_tracks = [track for track in selected_tracks if track.kind == "video"]
-    cover_tracks = [track for track in selected_tracks if track.disposition.attached_pic]
     audio_tracks = [track for track in selected_tracks if track.kind == "audio"]
     subtitle_tracks = [track for track in selected_tracks if track.kind == "subtitle"]
 
@@ -89,8 +88,17 @@ def build_mux_args(
     return args
 
 
+def build_mux_invocation(
+    media_list: list[MediaInfo],
+    selected_tracks: list[TrackInfo],
+    output_container: str,
+    output_path: str,
+) -> tuple[str, list[str]]:
+    return find_ffmpeg() or "ffmpeg", build_mux_args(media_list, selected_tracks, output_container, output_path)
+
+
 def format_ffmpeg_command(args: list[str]) -> str:
-    parts = ["ffmpeg", *args]
+    parts = [find_ffmpeg() or "ffmpeg", *args]
     return " ".join(_quote(arg) for arg in parts)
 
 
@@ -100,5 +108,3 @@ def _quote(value: str) -> str:
     if any(char.isspace() for char in value) or '"' in value:
         return '"' + value.replace('"', '\\"') + '"'
     return value
-
-

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 from .models import MediaInfo, TrackDisposition, TrackInfo
+from .tool_paths import find_ffprobe
 
 
 IMAGE_FILE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
@@ -15,16 +15,17 @@ class FFprobeError(RuntimeError):
     pass
 
 
-def ensure_ffprobe() -> None:
-    if shutil.which("ffprobe"):
-        return
-    raise FFprobeError("系统 PATH 中未找到 ffprobe。")
+def ensure_ffprobe() -> str:
+    ffprobe_path = find_ffprobe()
+    if ffprobe_path:
+        return ffprobe_path
+    raise FFprobeError("未找到 ffprobe，可将 ffprobe.exe 放到程序 tools 目录或配置到系统 PATH。")
 
 
 def inspect_media(input_path: str, source_index: int) -> MediaInfo:
-    ensure_ffprobe()
+    ffprobe_path = ensure_ffprobe()
     args = [
-        "ffprobe",
+        ffprobe_path,
         "-v",
         "error",
         "-print_format",
@@ -151,4 +152,3 @@ def _to_int(value: object) -> int | None:
         return int(float(value))
     except (TypeError, ValueError):
         return None
-

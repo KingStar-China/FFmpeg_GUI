@@ -44,7 +44,7 @@ from .extract_logic import (
 )
 from .ffprobe_service import FFprobeError, inspect_media
 from .models import ExtractTarget, MediaInfo, TrackInfo
-from .mux_logic import build_default_output_path, build_mux_args, format_ffmpeg_command, validate_mux_selection
+from .mux_logic import build_default_output_path, build_mux_args, build_mux_invocation, format_ffmpeg_command, validate_mux_selection
 
 
 class MainWindow(QMainWindow):
@@ -846,7 +846,7 @@ class MainWindow(QMainWindow):
             if not output_path:
                 self.command_preview.setPlainText("请先选择输出文件夹并填写文件名。")
                 return
-            args = build_mux_args(self.media_list, selected_tracks, self.output_container, output_path)
+            program, args = build_mux_invocation(self.media_list, selected_tracks, self.output_container, output_path)
             self.command_preview.setPlainText(format_ffmpeg_command(args))
             return
 
@@ -859,7 +859,6 @@ class MainWindow(QMainWindow):
                 program, args = build_extract_invocation(selected_tracks[0], target, output_path)
                 self.command_preview.setPlainText(format_process_command(program, args))
                 return
-
         self.command_preview.setPlainText("请先只选择 1 条轨道并指定输出格式。")
 
     def _ordered_selected_tracks(self) -> list[TrackInfo]:
@@ -964,11 +963,11 @@ class MainWindow(QMainWindow):
 
         self.log_output.clear()
         if self.current_mode == "mux":
-            args = build_mux_args(self.media_list, selected_tracks, self.output_container, output_path)
+            program, args = build_mux_invocation(self.media_list, selected_tracks, self.output_container, output_path)
             self.log_output.appendPlainText("[开始封装]")
             self.log_output.appendPlainText(format_ffmpeg_command(args))
-            self._start_task("封装", output_path, total_duration_ms=self._estimate_mux_duration_ms(selected_tracks))
-            self.ffmpeg_process.start("ffmpeg", args)
+            self._start_task("封装", output_path, process_name=Path(program).stem.lower(), total_duration_ms=self._estimate_mux_duration_ms(selected_tracks))
+            self.ffmpeg_process.start(program, args)
             self.run_button.setEnabled(False)
             return
 
