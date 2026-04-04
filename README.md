@@ -1,6 +1,6 @@
 # FFmpeg GUI
 
-当前主线版本是 `Python + PySide6`，旧的 Electron 版本已经归档，不再继续维护。
+当前主线版本是 `Python + PySide6`。
 
 ## 下载
 
@@ -16,7 +16,6 @@
 ## 主线目录
 
 - 当前主程序目录：`app/`
-- 历史归档目录：`legacy/electron/`
 
 ## 当前功能
 
@@ -48,10 +47,8 @@ cd app
 ## 仓库结构
 
 - `app/`：当前维护中的 Python + PySide6 主线
-- `legacy/electron/`：旧的 Electron + React 实现，已停止维护
 - `logo/`：图标资源
 
 ## 说明
 
 - 仓库首页和 Release 以 Python 版为准
-- Electron 版只保留历史代码，不再继续发布
