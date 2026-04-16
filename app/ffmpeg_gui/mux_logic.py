@@ -47,11 +47,33 @@ def is_mp4_text_subtitle(codec: str) -> bool:
     return codec.strip().lower() in MP4_TEXT_SUBTITLE_CODECS
 
 
-def build_default_output_path(media_list: list[MediaInfo], output_container: str) -> str:
+def build_default_output_path(
+    media_list: list[MediaInfo],
+    output_container: str,
+    selected_tracks: list[TrackInfo] | None = None,
+) -> str:
     if not media_list:
         return f"output.{output_container}"
     first_input = Path(media_list[0].input_path)
-    return str(first_input.with_suffix(f".{output_container}"))
+    default_extension = _default_mux_extension(output_container, selected_tracks or [])
+    return str(first_input.with_suffix(default_extension))
+
+
+def _default_mux_extension(output_container: str, selected_tracks: list[TrackInfo]) -> str:
+    if output_container == "mp4" and _is_aac_audio_only_selection(selected_tracks):
+        return ".m4a"
+    return f".{output_container}"
+
+
+def _is_aac_audio_only_selection(selected_tracks: list[TrackInfo]) -> bool:
+    if len(selected_tracks) != 1:
+        return False
+    track = selected_tracks[0]
+    if track.kind != "audio":
+        return False
+    if track.disposition.attached_pic:
+        return False
+    return track.codec.strip().lower() == "aac"
 
 
 def build_mux_args(

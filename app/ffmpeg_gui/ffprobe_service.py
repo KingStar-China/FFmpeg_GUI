@@ -65,7 +65,7 @@ def mark_embedded_cover_art(tracks: list[TrackInfo], input_path: str) -> None:
 
     cover_track = video_tracks[0]
     cover_track.disposition.attached_pic = True
-    cover_track.selected = True
+    cover_track.selected = False
     cover_track.supported = True
     cover_track.support_note = None
 
@@ -92,7 +92,7 @@ def map_stream_to_track(stream: dict, source_path: str, source_index: int) -> Tr
         supported=supported,
         support_note=None if supported else "v1 不支持此类轨道",
         disposition=disposition,
-        selected=supported,
+        selected=False,
     )
 
 

@@ -59,9 +59,15 @@ RAW_SUBTITLE_OUTPUT_EXTENSIONS = {"ass", "srt", "vtt", "sup"}
 
 
 def validate_extract_selection(selected_tracks: list[TrackInfo]) -> list[str]:
-    if len(selected_tracks) == 1:
+    if selected_tracks:
         return []
-    return ["提取模式下必须且只能勾选 1 条轨道。"]
+    return ["提取模式下至少要勾选 1 条轨道。"]
+
+
+def validate_convert_selection(selected_tracks: list[TrackInfo]) -> list[str]:
+    if selected_tracks:
+        return []
+    return ["转换模式下至少要勾选 1 条轨道。"]
 
 
 def list_extract_targets(track: TrackInfo | None) -> list[ExtractTarget]:
@@ -70,20 +76,39 @@ def list_extract_targets(track: TrackInfo | None) -> list[ExtractTarget]:
 
     codec = track.codec.strip().lower()
     if track.disposition.attached_pic:
-        targets = [_default_cover_target(codec)]
-        targets.extend(
+        return [_default_cover_target(codec)]
+
+    if track.kind == "audio":
+        return [_default_audio_target(codec)]
+
+    if track.kind == "subtitle":
+        raw_target = _raw_subtitle_target(codec)
+        return [raw_target] if raw_target is not None else [_default_subtitle_target(codec)]
+
+    if track.kind == "video":
+        return [_default_video_target(codec)]
+
+    return []
+
+
+def list_convert_targets(track: TrackInfo | None) -> list[ExtractTarget]:
+    if track is None:
+        return []
+
+    codec = track.codec.strip().lower()
+    if track.disposition.attached_pic:
+        return _dedupe_targets(
             [
                 ExtractTarget("cover-png", "转换为 PNG (*.png)", "png", "transcode", ("-c:v", "png", "-frames:v", "1")),
                 ExtractTarget("cover-jpg", "转换为 JPG (*.jpg)", "jpg", "transcode", ("-c:v", "mjpeg", "-frames:v", "1")),
                 ExtractTarget("cover-webp", "转换为 WebP (*.webp)", "webp", "transcode", ("-c:v", "libwebp", "-frames:v", "1")),
             ]
         )
-        return _dedupe_targets(targets)
 
     if track.kind == "audio":
-        targets = [_default_audio_target(codec)]
-        targets.extend(
+        return _dedupe_targets(
             [
+                ExtractTarget("audio-m4a", "转换为 M4A (*.m4a)", "m4a", "transcode", ("-c:a", "aac")),
                 ExtractTarget("audio-mp3", "转换为 MP3 (*.mp3)", "mp3", "transcode", ("-c:a", "libmp3lame")),
                 ExtractTarget("audio-aac", "转换为 AAC (*.aac)", "aac", "transcode", ("-c:a", "aac")),
                 ExtractTarget("audio-flac", "转换为 FLAC (*.flac)", "flac", "transcode", ("-c:a", "flac")),
@@ -91,24 +116,20 @@ def list_extract_targets(track: TrackInfo | None) -> list[ExtractTarget]:
                 ExtractTarget("audio-opus", "转换为 Opus (*.opus)", "opus", "transcode", ("-c:a", "libopus")),
             ]
         )
-        return _dedupe_targets(targets)
 
     if track.kind == "subtitle":
-        raw_target = _raw_subtitle_target(codec)
-        targets = [raw_target] if raw_target is not None else [_default_subtitle_target(codec)]
-        if codec not in IMAGE_SUBTITLE_CODECS:
-            targets.extend(
-                [
-                    ExtractTarget("sub-srt", "转换为 SRT (*.srt)", "srt", "transcode", ("-c:s", "srt")),
-                    ExtractTarget("sub-ass", "转换为 ASS (*.ass)", "ass", "transcode", ("-c:s", "ass")),
-                    ExtractTarget("sub-vtt", "转换为 WebVTT (*.vtt)", "vtt", "transcode", ("-c:s", "webvtt")),
-                ]
-            )
-        return _dedupe_targets(targets)
+        if codec in IMAGE_SUBTITLE_CODECS:
+            return []
+        return _dedupe_targets(
+            [
+                ExtractTarget("sub-srt", "转换为 SRT (*.srt)", "srt", "transcode", ("-c:s", "srt")),
+                ExtractTarget("sub-ass", "转换为 ASS (*.ass)", "ass", "transcode", ("-c:s", "ass")),
+                ExtractTarget("sub-vtt", "转换为 WebVTT (*.vtt)", "vtt", "transcode", ("-c:s", "webvtt")),
+            ]
+        )
 
     if track.kind == "video":
-        targets = [_default_video_target(codec)]
-        targets.extend(
+        return _dedupe_targets(
             [
                 ExtractTarget(
                     "video-mp4-h264",
@@ -133,7 +154,6 @@ def list_extract_targets(track: TrackInfo | None) -> list[ExtractTarget]:
                 ),
             ]
         )
-        return _dedupe_targets(targets)
 
     return []
 
@@ -147,6 +167,12 @@ def build_extract_output_path(track: TrackInfo, target: ExtractTarget) -> str:
             f"{source.stem}.src{track.source_index + 1}.{kind}.{codec}.track{track.stream_index}.{target.extension}"
         )
     )
+
+
+def build_extract_output_path_in_directory(track: TrackInfo, target: ExtractTarget, output_directory: str) -> str:
+    directory = Path(output_directory)
+    file_name = Path(build_extract_output_path(track, target)).name
+    return str(directory / file_name)
 
 
 def build_extract_args(track: TrackInfo, target: ExtractTarget, output_path: str) -> list[str]:

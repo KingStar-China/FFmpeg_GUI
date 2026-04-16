@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QMenu,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
@@ -38,8 +39,11 @@ from PySide6.QtWidgets import (
 from .extract_logic import (
     build_extract_invocation,
     build_extract_output_path,
+    build_extract_output_path_in_directory,
     format_process_command,
+    list_convert_targets,
     list_extract_targets,
+    validate_convert_selection,
     validate_extract_selection,
 )
 from .ffprobe_service import FFprobeError, inspect_media
@@ -73,11 +77,24 @@ class MainWindow(QMainWindow):
             parts.append(track.title)
         return " / ".join(parts)
 
+    def _current_convert_group(self) -> str | None:
+        if self.current_mode != "convert":
+            return None
+        selected_tracks = [track for track in self._all_tracks() if track.selected and track.supported]
+        if not selected_tracks:
+            return None
+        return self._convert_group_key(selected_tracks[0])
+
     def _is_track_selectable(self, track: TrackInfo) -> bool:
         if not track.supported:
             return False
+        if self.current_mode == "convert":
+            current_group = self._current_convert_group()
+            if current_group is None:
+                return True
+            return track.selected or self._convert_group_key(track) == current_group
         if track.disposition.attached_pic:
-            return self.current_mode in {"mux", "extract"}
+            return self.current_mode in {"mux", "extract", "convert"}
         return True
     def _apply_initial_geometry(self) -> None:
         screen = QGuiApplication.primaryScreen()
@@ -94,7 +111,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("FFmpeg GUI v0.1.0")
+        self.setWindowTitle("FFmpeg GUI v0.1.1")
         self.setAcceptDrops(True)
         self.setMinimumSize(900, 620)
 
@@ -103,6 +120,16 @@ class MainWindow(QMainWindow):
         self.output_container = "mkv"
         self.current_extract_target_id: str | None = None
         self.selected_track_order: list[str] = []
+        self.mode_selected_track_keys: dict[str, set[str]] = {
+            "mux": set(),
+            "extract": set(),
+            "convert": set(),
+        }
+        self.mode_selected_track_orders: dict[str, list[str]] = {
+            "mux": [],
+            "extract": [],
+            "convert": [],
+        }
         self.output_path_value = ""
         self.output_path_dirty = False
         self._updating_output_controls = False
@@ -117,6 +144,10 @@ class MainWindow(QMainWindow):
         self._active_process_name = "ffmpeg"
         self._active_total_duration_ms = 0
         self._active_progress_percent = -1
+        self._pending_batch_jobs: list[tuple[str, list[str], str, bool, int]] = []
+        self._batch_total = 0
+        self._batch_completed = 0
+        self._batch_task_label: str | None = None
 
         self.ffmpeg_process = QProcess(self)
         self.ffmpeg_process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
@@ -269,24 +300,6 @@ class MainWindow(QMainWindow):
         self._set_task_progress(0 if self._active_total_duration_ms > 0 else None)
         self._set_task_status(f"{task_label}中...")
 
-    def _finish_active_task(self, success: bool) -> None:
-        if not self._active_task_label:
-            return
-        task_label = self._active_task_label
-        if success:
-            self._set_task_progress(100)
-        self._set_task_status(f"{task_label}完成" if success else f"{task_label}失败")
-        self._active_task_label = None
-        self._active_task_failed = False
-        self._active_output_path = None
-        self._active_cover_extract = False
-        self._active_cover_last_size = -1
-        self._active_cover_stable_ticks = 0
-        self._forced_task_success = False
-        self._active_total_duration_ms = 0
-        self._active_progress_percent = -1
-        self._refresh_side_panel()
-
     def _poll_process_state(self) -> None:
         if not self._active_task_label:
             return
@@ -330,6 +343,10 @@ class MainWindow(QMainWindow):
         clear_action.triggered.connect(self.clear_media)
         toolbar.addAction(clear_action)
 
+        clear_selection_action = QAction("清空勾选", self)
+        clear_selection_action.triggered.connect(self.clear_current_selection)
+        toolbar.addAction(clear_selection_action)
+
     def _build_mode_bar(self) -> QWidget:
         container = QFrame(self)
         layout = QHBoxLayout(container)
@@ -341,12 +358,15 @@ class MainWindow(QMainWindow):
 
         self.mux_radio = QRadioButton("封装", container)
         self.extract_radio = QRadioButton("提取", container)
+        self.convert_radio = QRadioButton("转换", container)
         self.mux_radio.setChecked(True)
         self.mux_radio.toggled.connect(self._on_mode_changed)
         self.extract_radio.toggled.connect(self._on_mode_changed)
+        self.convert_radio.toggled.connect(self._on_mode_changed)
 
         layout.addWidget(self.mux_radio)
         layout.addWidget(self.extract_radio)
+        layout.addWidget(self.convert_radio)
         layout.addStretch(1)
         return container
 
@@ -402,6 +422,8 @@ class MainWindow(QMainWindow):
         self.track_table.setAlternatingRowColors(True)
         self.track_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.track_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.track_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.track_table.customContextMenuRequested.connect(self._show_track_context_menu)
         self.track_table.horizontalHeader().setStretchLastSection(True)
         self.track_table.cellChanged.connect(self._on_track_cell_changed)
         layout.addWidget(self.track_table)
@@ -453,11 +475,11 @@ class MainWindow(QMainWindow):
 
         self.selected_order_group = QGroupBox("已选轨道顺序", group)
         self.selected_order_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self.selected_order_group.setFixedHeight(238)
+        self.selected_order_group.setFixedHeight(226)
         selected_layout = QVBoxLayout(self.selected_order_group)
         self.selected_order_list = QListWidget(self.selected_order_group)
         self.selected_order_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.selected_order_list.setMinimumHeight(168)
+        self.selected_order_list.setMinimumHeight(156)
         selected_layout.addWidget(self.selected_order_list, 1)
         layout.addWidget(self.selected_order_group, 0)
         layout.addSpacing(20)
@@ -547,7 +569,7 @@ class MainWindow(QMainWindow):
 
         if not self.media_list:
             self.media_list = []
-            self.selected_track_order = []
+            self._reset_mode_selections()
             self.current_extract_target_id = None
             self.output_path_dirty = False
             first_path, *rest = paths
@@ -567,7 +589,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self.media_list = []
-        self.selected_track_order = []
+        self._reset_mode_selections()
         self.current_extract_target_id = None
         self.output_path_dirty = False
         self._load_media_file(path, source_index=0)
@@ -598,19 +620,33 @@ class MainWindow(QMainWindow):
         self._set_task_progress(None)
         self._set_task_status("空闲")
         self.media_list = []
-        self.selected_track_order = []
+        self._reset_mode_selections()
         self.current_extract_target_id = None
         self.output_path_value = ""
         self.output_path_dirty = False
         self.log_output.appendPlainText("已清空当前媒体列表。")
         self._refresh_all()
 
+    def clear_current_selection(self) -> None:
+        for track in self._all_tracks():
+            track.selected = False
+        self.selected_track_order = []
+        self._persist_current_mode_selection()
+        self.output_path_value = ""
+        self.output_path_dirty = False
+        self.log_output.appendPlainText("已清空当前模式下的勾选。")
+        self._refresh_all()
+
     def _default_output_path(self) -> Path | None:
         if not self.media_list:
             return None
         if self.current_mode == "mux":
-            return Path(build_default_output_path(self.media_list, self.output_container))
+            return Path(build_default_output_path(self.media_list, self.output_container, self._ordered_selected_tracks()))
         selected_tracks = self._ordered_selected_tracks()
+        if self.current_mode == "extract" and len(selected_tracks) > 1:
+            return Path(selected_tracks[0].source_path).parent
+        if self.current_mode == "convert" and len(selected_tracks) > 1:
+            return Path(selected_tracks[0].source_path).parent
         if len(selected_tracks) != 1:
             return None
         target = self._current_extract_target()
@@ -639,9 +675,19 @@ class MainWindow(QMainWindow):
 
     def _choose_output_directory(self) -> None:
         start_path = self._current_output_path()
+        selected_tracks = self._ordered_selected_tracks()
         if not start_path:
             default_path = self._default_output_path()
             start_path = str(default_path) if default_path is not None else ""
+        if self.current_mode in {"extract", "convert"} and len(selected_tracks) > 1:
+            chosen = QFileDialog.getExistingDirectory(self, "选择输出文件夹", start_path)
+            if not chosen:
+                return
+            self.output_path_value = chosen
+            self.output_path_dirty = True
+            self._set_output_controls(self.output_path_value)
+            self._refresh_command_preview()
+            return
         chosen, _ = QFileDialog.getSaveFileName(self, "另存为", start_path, "所有文件 (*.*)")
         if not chosen:
             return
@@ -671,6 +717,7 @@ class MainWindow(QMainWindow):
         else:
             self.media_list.append(media)
 
+        self._restore_current_mode_selection()
         self._apply_selection_constraints()
         self._sync_selected_track_order()
         self.log_output.appendPlainText(f"[导入] {Path(path).name}，共 {len(media.tracks)} 条轨道。")
@@ -708,7 +755,10 @@ class MainWindow(QMainWindow):
             else:
                 check_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                 check_item.setText("-")
-                check_item.setToolTip(track.support_note or "当前不支持")
+                if self.current_mode == "convert" and track.supported:
+                    check_item.setToolTip("转换模式下只能同时选择同类型轨道。")
+                else:
+                    check_item.setToolTip(track.support_note or "当前不支持")
             self.track_table.setItem(row, 0, check_item)
             source_item = QTableWidgetItem(self._source_label(track.source_index))
             source_item.setToolTip(track.source_file_name)
@@ -761,10 +811,18 @@ class MainWindow(QMainWindow):
             self.selected_order_group.setEnabled(True)
             self.run_button.setText("开始封装")
             self._refresh_selected_order_list(selected_tracks)
+        elif self.current_mode == "extract":
+            self.selected_order_group.setEnabled(True)
+            self._refresh_selected_order_list(selected_tracks)
+            self.move_up_button.setEnabled(False)
+            self.move_down_button.setEnabled(False)
+            self.run_button.setText("开始提取")
         else:
             self.selected_order_group.setEnabled(True)
-            self._show_selected_order_placeholder("提取模式下只显示当前选中的 1 条轨道。")
-            self.run_button.setText("开始提取")
+            self._refresh_selected_order_list(selected_tracks)
+            self.move_up_button.setEnabled(False)
+            self.move_down_button.setEnabled(False)
+            self.run_button.setText("开始转换")
 
         self._sync_output_controls(force=not self.output_path_dirty)
         can_run = not issues and self.ffmpeg_process.state() == QProcess.ProcessState.NotRunning
@@ -807,9 +865,11 @@ class MainWindow(QMainWindow):
             self.output_format_combo.addItem("MP4", userData="mp4")
             index = 0 if self.output_container == "mkv" else 1
             self.output_format_combo.setCurrentIndex(index)
+        elif self.current_mode == "extract" and len(selected_tracks) > 1:
+            self.output_format_combo.addItem("按轨道默认格式批量提取", userData="batch-extract-default")
+            self.output_format_combo.setCurrentIndex(0)
         else:
-            selected_track = selected_tracks[0] if len(selected_tracks) == 1 else None
-            targets = list_extract_targets(selected_track)
+            targets = self._current_single_track_targets(selected_tracks)
             current_index = 0
             for index, target in enumerate(targets):
                 self.output_format_combo.addItem(target.label, userData=target)
@@ -830,9 +890,13 @@ class MainWindow(QMainWindow):
         if self.current_mode == "mux":
             return validate_mux_selection(selected_tracks, self.output_container)
 
-        issues = validate_extract_selection(selected_tracks)
+        issues = validate_extract_selection(selected_tracks) if self.current_mode == "extract" else validate_convert_selection(selected_tracks)
+        if self.current_mode == "convert" and not issues and not self._is_same_convert_group(selected_tracks):
+            issues.append("批量转换时只能同时选择同类型轨道。")
+        if self.current_mode == "extract" and len(selected_tracks) > 1:
+            return issues
         if not issues and self._current_extract_target() is None:
-            issues.append("当前轨道没有可用的提取输出格式。")
+            issues.append("当前轨道没有可用的提取输出格式。" if self.current_mode == "extract" else "当前轨道没有可用的转换输出格式。")
         return issues
 
     def _refresh_command_preview(self) -> None:
@@ -859,7 +923,123 @@ class MainWindow(QMainWindow):
                 program, args = build_extract_invocation(selected_tracks[0], target, output_path)
                 self.command_preview.setPlainText(format_process_command(program, args))
                 return
+        if self.current_mode == "extract" and len(selected_tracks) > 1:
+            if not output_path:
+                self.command_preview.setPlainText("请先选择输出文件夹。")
+                return
+            output_directory = Path(output_path)
+            if output_directory.suffix:
+                output_directory = output_directory.parent
+            commands: list[str] = []
+            for track in selected_tracks[:3]:
+                default_targets = list_extract_targets(track)
+                if not default_targets:
+                    continue
+                resolved_output = build_extract_output_path_in_directory(track, default_targets[0], str(output_directory))
+                program, args = build_extract_invocation(track, default_targets[0], resolved_output)
+                commands.append(format_process_command(program, args))
+            if len(selected_tracks) > 3:
+                commands.append(f"... 共 {len(selected_tracks)} 条批量提取命令")
+            self.command_preview.setPlainText("\n\n".join(commands) if commands else "当前选中的轨道没有可用的提取输出格式。")
+            return
+        if self.current_mode == "convert" and len(selected_tracks) > 1:
+            target = self._current_extract_target()
+            if target is None:
+                self.command_preview.setPlainText("请先选择同类型轨道并指定转换格式。")
+                return
+            if not output_path:
+                self.command_preview.setPlainText("请先选择输出文件夹。")
+                return
+            output_directory = Path(output_path)
+            if output_directory.suffix:
+                output_directory = output_directory.parent
+            commands: list[str] = []
+            for track in selected_tracks[:3]:
+                resolved_output = build_extract_output_path_in_directory(track, target, str(output_directory))
+                program, args = build_extract_invocation(track, target, resolved_output)
+                commands.append(format_process_command(program, args))
+            if len(selected_tracks) > 3:
+                commands.append(f"... 共 {len(selected_tracks)} 条批量转换命令")
+            self.command_preview.setPlainText("\n\n".join(commands))
+            return
         self.command_preview.setPlainText("请先只选择 1 条轨道并指定输出格式。")
+
+    def _show_track_context_menu(self, position) -> None:
+        item = self.track_table.itemAt(position)
+        if item is None:
+            return
+        row = item.row()
+        all_tracks = self._all_tracks()
+        if row < 0 or row >= len(all_tracks):
+            return
+        track = all_tracks[row]
+        if not track.supported:
+            return
+
+        menu = QMenu(self)
+        select_all_action = menu.addAction("全选")
+        triggered = menu.exec(self.track_table.viewport().mapToGlobal(position))
+        if triggered == select_all_action:
+            self._apply_context_select_all(track)
+
+    def _apply_context_select_all(self, trigger_track: TrackInfo) -> None:
+        selectable_tracks = [track for track in self._all_tracks() if track.supported]
+        if not selectable_tracks:
+            return
+
+        for track in selectable_tracks:
+            track.selected = False
+
+        selected_keys: list[str] = []
+        if self.current_mode == "mux":
+            normal_videos = [track for track in selectable_tracks if track.kind == "video" and not track.disposition.attached_pic]
+            non_videos = [track for track in selectable_tracks if track.kind != "video" or track.disposition.attached_pic]
+            if trigger_track.kind == "video" and not trigger_track.disposition.attached_pic:
+                selected_keys = [trigger_track.track_key, *[track.track_key for track in non_videos]]
+            else:
+                if normal_videos:
+                    selected_keys.append(normal_videos[0].track_key)
+                selected_keys.extend(track.track_key for track in non_videos)
+        elif self.current_mode == "extract":
+            selected_keys = [track.track_key for track in selectable_tracks]
+        elif self.current_mode == "convert":
+            group_key = self._convert_group_key(trigger_track)
+            selected_keys = [track.track_key for track in selectable_tracks if self._convert_group_key(track) == group_key]
+
+        selected_key_set = set(selected_keys)
+        for track in selectable_tracks:
+            track.selected = track.track_key in selected_key_set
+        self.selected_track_order = selected_keys
+        self._apply_selection_constraints()
+        self._sync_selected_track_order()
+        self._refresh_all()
+
+    def _current_single_track_targets(self, selected_tracks: list[TrackInfo]) -> list[ExtractTarget]:
+        if self.current_mode == "extract":
+            selected_track = selected_tracks[0] if len(selected_tracks) == 1 else None
+            return list_extract_targets(selected_track)
+        if self.current_mode != "convert":
+            return []
+        if not selected_tracks or not self._is_same_convert_group(selected_tracks):
+            return []
+        target_lists = [list_convert_targets(track) for track in selected_tracks]
+        if not target_lists:
+            return []
+        common_ids = {target.id for target in target_lists[0]}
+        for target_list in target_lists[1:]:
+            common_ids &= {target.id for target in target_list}
+        return [target for target in target_lists[0] if target.id in common_ids]
+
+    def _convert_group_key(self, track: TrackInfo) -> str:
+        if track.disposition.attached_pic:
+            return "cover"
+        return track.kind
+
+    def _is_same_convert_group(self, selected_tracks: list[TrackInfo]) -> bool:
+        if not selected_tracks:
+            return True
+        group_key = self._convert_group_key(selected_tracks[0])
+        return all(self._convert_group_key(track) == group_key for track in selected_tracks)
 
     def _ordered_selected_tracks(self) -> list[TrackInfo]:
         track_map = {track.track_key: track for track in self._all_tracks()}
@@ -877,23 +1057,31 @@ class MainWindow(QMainWindow):
             if track.track_key in selected_keys and track.track_key not in next_order:
                 next_order.append(track.track_key)
         self.selected_track_order = next_order
+        self._persist_current_mode_selection()
 
     def _apply_selection_constraints(self, changed_track: TrackInfo | None = None) -> None:
         all_tracks = [track for track in self._all_tracks() if track.supported]
         if self.current_mode == "extract":
+            return
+
+        if self.current_mode == "convert":
             selected_tracks = [track for track in all_tracks if track.selected]
-            keep_key = None
+            keep_group = None
             if changed_track and changed_track.selected:
-                keep_key = changed_track.track_key
+                keep_group = self._convert_group_key(changed_track)
             elif selected_tracks:
                 for track_key in self.selected_track_order:
-                    if any(track.track_key == track_key for track in selected_tracks):
-                        keep_key = track_key
+                    matched = next((track for track in selected_tracks if track.track_key == track_key), None)
+                    if matched is not None:
+                        keep_group = self._convert_group_key(matched)
                         break
-                if keep_key is None:
-                    keep_key = selected_tracks[0].track_key
-            for track in selected_tracks:
-                track.selected = track.track_key == keep_key
+                if keep_group is None:
+                    keep_group = self._convert_group_key(selected_tracks[0])
+
+            if keep_group is not None:
+                for track in selected_tracks:
+                    if self._convert_group_key(track) != keep_group:
+                        track.selected = False
             return
 
         selected_videos = [track for track in all_tracks if track.kind == "video" and track.selected and not track.disposition.attached_pic]
@@ -971,16 +1159,79 @@ class MainWindow(QMainWindow):
             self.run_button.setEnabled(False)
             return
 
+        if self.current_mode == "extract" and len(selected_tracks) > 1:
+            output_directory = Path(output_path)
+            if output_directory.suffix:
+                output_directory = output_directory.parent
+            output_directory.mkdir(parents=True, exist_ok=True)
+            self.log_output.appendPlainText("[开始批量提取]")
+            jobs: list[tuple[str, list[str], str, bool, int]] = []
+            for track in selected_tracks:
+                default_targets = list_extract_targets(track)
+                if not default_targets:
+                    continue
+                resolved_output = build_extract_output_path_in_directory(track, default_targets[0], str(output_directory))
+                program, args = build_extract_invocation(track, default_targets[0], resolved_output)
+                self.log_output.appendPlainText(format_process_command(program, args))
+                jobs.append(
+                    (
+                        program,
+                        args,
+                        resolved_output,
+                        track.disposition.attached_pic,
+                        self._estimate_extract_duration_ms(track),
+                    )
+                )
+            if not jobs:
+                QMessageBox.warning(self, "不能开始提取", "当前选中的轨道没有可用的默认提取格式。")
+                return
+            self._pending_batch_jobs = jobs
+            self._batch_total = len(jobs)
+            self._batch_completed = 0
+            self._batch_task_label = "提取"
+            self.run_button.setEnabled(False)
+            self._start_next_batch_job()
+            return
+
         track = selected_tracks[0]
         target = self._current_extract_target()
         if target is None:
-            QMessageBox.warning(self, "不能开始提取", "当前没有可用的输出格式。")
+            QMessageBox.warning(self, "不能开始执行", "当前没有可用的输出格式。")
+            return
+
+        if self.current_mode == "convert" and len(selected_tracks) > 1:
+            output_directory = Path(output_path)
+            if output_directory.suffix:
+                output_directory = output_directory.parent
+            output_directory.mkdir(parents=True, exist_ok=True)
+            self.log_output.appendPlainText("[开始批量转换]")
+            jobs: list[tuple[str, list[str], str, bool, int]] = []
+            for track in selected_tracks:
+                resolved_output = build_extract_output_path_in_directory(track, target, str(output_directory))
+                program, args = build_extract_invocation(track, target, resolved_output)
+                self.log_output.appendPlainText(format_process_command(program, args))
+                jobs.append(
+                    (
+                        program,
+                        args,
+                        resolved_output,
+                        track.disposition.attached_pic,
+                        self._estimate_extract_duration_ms(track),
+                    )
+                )
+            self._pending_batch_jobs = jobs
+            self._batch_total = len(jobs)
+            self._batch_completed = 0
+            self._batch_task_label = "转换"
+            self.run_button.setEnabled(False)
+            self._start_next_batch_job()
             return
 
         program, args = build_extract_invocation(track, target, output_path)
-        self.log_output.appendPlainText("[开始提取]")
+        task_label = "提取" if self.current_mode == "extract" else "转换"
+        self.log_output.appendPlainText(f"[开始{task_label}]")
         self.log_output.appendPlainText(format_process_command(program, args))
-        self._start_task("提取", output_path, track.disposition.attached_pic, Path(program).stem.lower(), self._estimate_extract_duration_ms(track))
+        self._start_task(task_label, output_path, track.disposition.attached_pic, Path(program).stem.lower(), self._estimate_extract_duration_ms(track))
         self.ffmpeg_process.start(program, args)
         self.run_button.setEnabled(False)
 
@@ -1010,7 +1261,7 @@ class MainWindow(QMainWindow):
             self._set_task_status(f"{self._active_task_label}失败")
             return
         if "progress=end" in lowered:
-            self._finish_active_task(True)
+            self._set_task_status(f"{self._active_task_label}完成")
             return
         for line in payload.splitlines():
             if "video:" in line and "audio:" in line:
@@ -1064,7 +1315,14 @@ class MainWindow(QMainWindow):
     def _on_mode_changed(self, checked: bool) -> None:
         if not checked:
             return
-        self.current_mode = "mux" if self.mux_radio.isChecked() else "extract"
+        self._persist_current_mode_selection()
+        if self.mux_radio.isChecked():
+            self.current_mode = "mux"
+        elif self.extract_radio.isChecked():
+            self.current_mode = "extract"
+        else:
+            self.current_mode = "convert"
+        self._restore_current_mode_selection()
         self._apply_selection_constraints()
         self._sync_selected_track_order()
         self._show_notice("已切换模式")
@@ -1097,6 +1355,87 @@ class MainWindow(QMainWindow):
     def _current_extract_target(self) -> ExtractTarget | None:
         target = self.output_format_combo.currentData()
         return target if isinstance(target, ExtractTarget) else None
+
+    def _reset_mode_selections(self) -> None:
+        for mode in self.mode_selected_track_keys:
+            self.mode_selected_track_keys[mode] = set()
+            self.mode_selected_track_orders[mode] = []
+        self.selected_track_order = []
+
+    def _persist_current_mode_selection(self) -> None:
+        if self.current_mode not in self.mode_selected_track_keys:
+            return
+        selected_keys = [track.track_key for track in self._all_tracks() if track.selected and track.supported]
+        self.mode_selected_track_keys[self.current_mode] = set(selected_keys)
+        next_order = [track_key for track_key in self.selected_track_order if track_key in self.mode_selected_track_keys[self.current_mode]]
+        for track in self._all_tracks():
+            if track.track_key in self.mode_selected_track_keys[self.current_mode] and track.track_key not in next_order:
+                next_order.append(track.track_key)
+        self.selected_track_order = next_order
+        self.mode_selected_track_orders[self.current_mode] = list(next_order)
+
+    def _restore_current_mode_selection(self) -> None:
+        selected_keys = self.mode_selected_track_keys.get(self.current_mode, set())
+        for track in self._all_tracks():
+            track.selected = track.supported and track.track_key in selected_keys
+        stored_order = self.mode_selected_track_orders.get(self.current_mode, [])
+        self.selected_track_order = [track_key for track_key in stored_order if track_key in selected_keys]
+        for track in self._all_tracks():
+            if track.selected and track.track_key not in self.selected_track_order:
+                self.selected_track_order.append(track.track_key)
+
+    def _reset_active_task_state(self) -> None:
+        self._active_task_label = None
+        self._active_task_failed = False
+        self._active_output_path = None
+        self._active_cover_extract = False
+        self._active_cover_last_size = -1
+        self._active_cover_stable_ticks = 0
+        self._forced_task_success = False
+        self._ignore_next_process_error = False
+        self._active_total_duration_ms = 0
+        self._active_progress_percent = -1
+
+    def _start_next_batch_job(self) -> None:
+        if not self._pending_batch_jobs:
+            return
+        program, args, output_path, is_cover_extract, total_duration_ms = self._pending_batch_jobs.pop(0)
+        current_index = self._batch_completed + 1
+        self.log_output.appendPlainText(f"[批量] 开始第 {current_index}/{self._batch_total} 条。")
+        self._start_task(self._batch_task_label or "任务", output_path, is_cover_extract, Path(program).stem.lower(), total_duration_ms)
+        self.ffmpeg_process.start(program, args)
+
+    def _finish_active_task(self, success: bool) -> None:
+        if not self._active_task_label:
+            return
+        task_label = self._active_task_label
+        if self._batch_total > 0:
+            if success:
+                self._batch_completed += 1
+                if self._pending_batch_jobs:
+                    self.log_output.appendPlainText(f"[批量] 已完成 {self._batch_completed}/{self._batch_total}，继续下一条。")
+                    self._reset_active_task_state()
+                    QTimer.singleShot(0, self._start_next_batch_job)
+                    return
+                self._set_task_progress(100)
+                self._set_task_status(f"{task_label}完成（{self._batch_completed}/{self._batch_total}）")
+            else:
+                failed_index = self._batch_completed + 1
+                self._set_task_status(f"{task_label}失败（第 {failed_index}/{self._batch_total} 条）")
+                self._pending_batch_jobs.clear()
+            self._reset_active_task_state()
+            self._batch_total = 0
+            self._batch_completed = 0
+            self._batch_task_label = None
+            self._refresh_side_panel()
+            return
+
+        if success:
+            self._set_task_progress(100)
+        self._set_task_status(f"{task_label}完成" if success else f"{task_label}失败")
+        self._reset_active_task_state()
+        self._batch_task_label = None
+        self._refresh_side_panel()
 
     def _all_tracks(self) -> list[TrackInfo]:
         tracks: list[TrackInfo] = []
