@@ -14,3 +14,4 @@ app/*.spec
 app/tools/ffmpeg.exe
 app/tools/ffprobe.exe
 app/tools/*.dll
+/.codex/
