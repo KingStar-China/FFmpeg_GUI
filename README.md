@@ -5,8 +5,8 @@
 ## 下载
 
 当前推荐下载：
-- GitHub Release：`FFmpeg_GUI_v0.1.0_win64_portable.zip`
-- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.0>
+- GitHub Release：`FFmpeg_GUI_v0.1.1_win64_portable.zip`
+- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.1>
 
 说明：
 - 这是当前唯一推荐下载的版本
