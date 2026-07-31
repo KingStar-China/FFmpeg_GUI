@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>FFmpegGui.App</RootNamespace>
+    <AssemblyName>FFmpeg GUI</AssemblyName>
+    <ApplicationIcon>../../app/assets/app.ico</ApplicationIcon>
+    <Version>0.2.0</Version>
+    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <FileVersion>0.2.0.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FFmpegGui.Core/FFmpegGui.Core.csproj" />
+    <ProjectReference Include="../FFmpegGui.Infrastructure/FFmpegGui.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../../app/assets/app.ico" Link="Assets/app.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../app/tools/mkvextract.exe" Link="tools/mkvextract.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

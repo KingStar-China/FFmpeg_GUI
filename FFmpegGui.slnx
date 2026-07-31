@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FFmpegGui.Core/FFmpegGui.Core.csproj" />
+    <Project Path="src/FFmpegGui.Infrastructure/FFmpegGui.Infrastructure.csproj" />
+    <Project Path="src/FFmpegGui.App/FFmpegGui.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FFmpegGui.Core.Tests/FFmpegGui.Core.Tests.csproj" />
+  </Folder>
+</Solution>
