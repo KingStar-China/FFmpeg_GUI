@@ -1,6 +1,6 @@
 # FFmpeg GUI
 
-当前稳定版是 Windows 原生 `v0.2.0`，技术栈为 `C# + .NET 10 + WPF Fluent`。原有 `Python + PySide6` 的 `v0.1.1` 继续保留，作为旧版兼容与回退实现。
+当前稳定版是 Windows 原生 `v0.2.0`，技术栈为 `C# + .NET 10 + WPF Fluent`。发布物只包含原生版；`app/` 中的 `Python + PySide6` 仅作为历史源码保留，不参与 release。
 
 ## 当前能力
 
@@ -12,7 +12,7 @@
 
 ## 运行原生版
 
-需要 Windows 和 .NET 10 SDK：
+开发运行需要 Windows 和 .NET 10 SDK；运行发布目录需要 .NET 10 Desktop Runtime：
 
 ```powershell
 .\run_windows_native.ps1
@@ -31,7 +31,7 @@ dotnet test .\FFmpegGui.slnx --configuration Release
 dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 ```
 
-生成包含 .NET Runtime、FFmpeg、FFprobe 和 mkvextract 的 x64 自包含便携包：
+生成不包含 .NET Runtime 的 x64 原生目录版（需要目标机安装 .NET 10 Desktop Runtime）：
 
 ```powershell
 .\build_windows_native.ps1
@@ -43,7 +43,7 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 .\build_windows_native.ps1 -FfmpegBin "C:\Tools\ffmpeg\bin"
 ```
 
-输出位于 `artifacts\`。
+输出位于 `artifacts\FFmpeg GUI Native win-x64\`，脚本不再额外生成压缩包。
 
 ## 仓库结构
 
@@ -51,12 +51,12 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 - `src/FFmpegGui.Core/`：封装、提取、转换规则和参数生成。
 - `src/FFmpegGui.Infrastructure/`：FFprobe 分析、工具定位和进程执行。
 - `tests/FFmpegGui.Core.Tests/`：核心规则自动化测试。
-- `app/`：保留的 Python `v0.1.1` 旧版。
+- `app/`：历史 Python `v0.1.1` 源码、图标和 FFmpeg 工具，不参与原生 release。
 - `logo/`：图标资源。
 
 ## 稳定版下载
 
-- 当前版本：`FFmpeg_GUI_v0.2.0_win-x64_native_portable.zip`
+- 当前版本：`artifacts\FFmpeg GUI Native win-x64\`
 - Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.0>
-- 便携包内置 .NET Runtime、FFmpeg、FFprobe 和 mkvextract，解压后直接运行 `FFmpeg GUI.exe`。
+- 原生目录版包含 FFmpeg、FFprobe 和 mkvextract；目标机需先安装 .NET 10 Desktop Runtime，然后运行 `FFmpeg GUI.exe`。
 - 旧版 `v0.1.1`：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.1>

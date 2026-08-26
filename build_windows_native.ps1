@@ -72,10 +72,10 @@ if (Test-Path -LiteralPath $portableZip) {
 & dotnet publish $project `
     --configuration $Configuration `
     --runtime $Runtime `
-    --self-contained true `
+    --self-contained false `
     --output $portableDir `
     -p:PublishSingleFile=false `
-    -p:PublishReadyToRun=true `
+    -p:PublishReadyToRun=false `
     -p:DebugSymbols=false `
     -p:DebugType=None
 if ($LASTEXITCODE -ne 0) {
@@ -90,13 +90,13 @@ Get-ChildItem -LiteralPath $FfmpegBin -Filter '*.dll' -File |
     Copy-Item -Destination $toolsDir -Force
 Copy-Item -LiteralPath $mkvextract -Destination $toolsDir -Force
 
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory(
-    $portableDir,
-    $portableZip,
-    [IO.Compression.CompressionLevel]::Optimal,
-    $false
-)
+# 旧版本曾生成压缩包；本脚本现在只保留解压目录，避免本地保留两份发布产物。
+if (Test-Path -LiteralPath $portableZip) {
+    Remove-Item -LiteralPath $portableZip -Force
+}
 
-$zipSizeMb = [Math]::Round((Get-Item -LiteralPath $portableZip).Length / 1MB, 1)
-Write-Host "原生便携版已生成：$portableZip ($zipSizeMb MB)"
+$sizeMb = [Math]::Round(
+    ((Get-ChildItem -LiteralPath $portableDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB,
+    1)
+Write-Host "原生目录版已生成：$portableDir ($sizeMb MB)"
+Write-Host "注意：此版本不内置 .NET Runtime，需要安装 .NET 10 Desktop Runtime。"
