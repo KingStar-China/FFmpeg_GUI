@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using FFmpegGui.Core;
 
 namespace FFmpegGui.App.ViewModels;
@@ -30,17 +31,25 @@ public sealed class TrackItemViewModel : ObservableObject
     private bool _isSelectable;
     private string _selectableReason = string.Empty;
     private string _kindDisplay;
+    private OutputTarget? _selectedTarget;
 
-    public TrackItemViewModel(TrackInfo track, Action<TrackItemViewModel> selectionChanged)
+    public TrackItemViewModel(
+        TrackInfo track,
+        Action<TrackItemViewModel> selectionChanged,
+        Action<TrackItemViewModel>? targetChanged = null)
     {
         Track = track;
         _selectionChanged = selectionChanged;
+        _targetChanged = targetChanged;
         _isSelectable = track.IsSupported;
         _selectableReason = track.SupportNote ?? string.Empty;
         _kindDisplay = track.KindLabel;
+        TargetOptions = new(TrackTargetPlanner.ListTargets(track));
+        _selectedTarget = TargetOptions.FirstOrDefault();
     }
 
     private readonly Action<TrackItemViewModel> _selectionChanged;
+    private readonly Action<TrackItemViewModel>? _targetChanged;
 
     public TrackInfo Track { get; }
 
@@ -58,6 +67,23 @@ public sealed class TrackItemViewModel : ObservableObject
 
     public string Codec => Track.Codec;
 
+    public ObservableCollection<OutputTarget> TargetOptions { get; }
+
+    public OutputTarget? SelectedTarget
+    {
+        get => _selectedTarget;
+        set
+        {
+            if (SetProperty(ref _selectedTarget, value))
+            {
+                OnPropertiesChanged(nameof(TargetCodec), nameof(Tooltip));
+                _targetChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public string TargetCodec => SelectedTarget?.Label ?? "-";
+
     public string Language => Track.Language ?? "-";
 
     public string Title => Track.Title ?? "-";
@@ -69,7 +95,7 @@ public sealed class TrackItemViewModel : ObservableObject
     public string SourceFileName => Track.SourceFileName;
 
     public string Tooltip => IsSelectable
-        ? $"{Track.SourceFileName}\n{DisplayText}"
+        ? $"{Track.SourceFileName}\n{DisplayText}\n目标编码：{TargetCodec}"
         : SelectableReason;
 
     public string DisplayText

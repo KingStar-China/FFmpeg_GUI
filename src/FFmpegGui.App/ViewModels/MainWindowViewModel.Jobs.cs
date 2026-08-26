@@ -144,60 +144,41 @@ public sealed partial class MainWindowViewModel
     private (string TaskLabel, IReadOnlyList<MediaJob> Jobs) BuildJobs()
     {
         var selectedTracks = OrderedSelectedTracks();
-        if (CurrentMode == WorkMode.Mux)
+        if (CurrentMode == WorkMode.Batch)
+        {
+            return ("批量", []);
+        }
+
+        if (selectedTracks.Count == 0)
+        {
+            return ("处理", []);
+        }
+
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey);
+        if (operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix)
         {
             EnsureOutputParent(OutputPath);
             var invocation = _invocationFactory.CreateMux(
                 MediaItems.Select(item => item.Media).ToArray(),
                 selectedTracks,
                 _muxContainer,
-                OutputPath);
-            return ("封装",
-            [
-                new MediaJob(invocation, OutputPath, false, EstimateMuxDuration(selectedTracks)),
-            ]);
+                OutputPath,
+                targetByTrackKey);
+            return (
+                TrackTargetPlanner.OperationLabel(operation),
+                [new MediaJob(invocation, OutputPath, false, EstimateMuxDuration(selectedTracks))]);
         }
 
-        if (CurrentMode == WorkMode.Extract && selectedTracks.Count > 1)
+        if (selectedTracks.Count != 1
+            || !targetByTrackKey.TryGetValue(selectedTracks[0].TrackKey, out var selectedTarget))
         {
-            var outputDirectory = ResolveOutputDirectory(OutputPath);
-            Directory.CreateDirectory(outputDirectory);
-            var jobs = new List<MediaJob>();
-            foreach (var track in selectedTracks)
-            {
-                var target = ExtractPlanner.ListExtractTargets(track).FirstOrDefault();
-                if (target is null)
-                {
-                    continue;
-                }
-
-                var outputPath = ExtractPlanner.BuildOutputPathInDirectory(track, target, outputDirectory);
-                jobs.Add(BuildExtractJob(track, target, outputPath));
-            }
-
-            return ("提取", jobs);
-        }
-
-        if (SelectedOutputOption?.Target is not { } selectedTarget)
-        {
-            return (CurrentMode == WorkMode.Extract ? "提取" : "转换", []);
-        }
-
-        if (CurrentMode == WorkMode.Convert && selectedTracks.Count > 1)
-        {
-            var outputDirectory = ResolveOutputDirectory(OutputPath);
-            Directory.CreateDirectory(outputDirectory);
-            var jobs = selectedTracks.Select(track =>
-            {
-                var outputPath = ExtractPlanner.BuildOutputPathInDirectory(track, selectedTarget, outputDirectory);
-                return BuildExtractJob(track, selectedTarget, outputPath);
-            }).ToArray();
-            return ("转换", jobs);
+            return ("处理", []);
         }
 
         EnsureOutputParent(OutputPath);
         return (
-            CurrentMode == WorkMode.Extract ? "提取" : "转换",
+            TrackTargetPlanner.OperationLabel(operation),
             [BuildExtractJob(selectedTracks[0], selectedTarget, OutputPath)]);
     }
 

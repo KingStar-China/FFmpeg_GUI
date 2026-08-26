@@ -2,9 +2,17 @@ namespace FFmpegGui.Core;
 
 public enum WorkMode
 {
-    Mux,
+    SingleFile,
+    Batch,
+}
+
+public enum SingleFileOperation
+{
+    None,
     Extract,
     Convert,
+    Mux,
+    AudioMix,
 }
 
 public sealed record TrackDisposition(

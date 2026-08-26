@@ -17,20 +17,17 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly StringBuilder _logBuilder = new();
     private readonly Dictionary<WorkMode, HashSet<string>> _modeSelectedKeys = new()
     {
-        [WorkMode.Mux] = [],
-        [WorkMode.Extract] = [],
-        [WorkMode.Convert] = [],
+        [WorkMode.SingleFile] = [],
+        [WorkMode.Batch] = [],
     };
     private readonly Dictionary<WorkMode, List<string>> _modeSelectedOrders = new()
     {
-        [WorkMode.Mux] = [],
-        [WorkMode.Extract] = [],
-        [WorkMode.Convert] = [],
+        [WorkMode.SingleFile] = [],
+        [WorkMode.Batch] = [],
     };
 
-    private WorkMode _currentMode = WorkMode.Mux;
+    private WorkMode _currentMode = WorkMode.SingleFile;
     private string _muxContainer = "mp4";
-    private string? _currentTargetId;
     private OutputOptionViewModel? _selectedOutputOption;
     private SelectedTrackItemViewModel? _selectedOrderItem;
     private string _summaryText = "还没有导入媒体文件。";
@@ -70,38 +67,26 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public string ToolStatus { get; }
 
-    public bool IsMuxMode
+    public bool IsSingleFileMode
     {
-        get => CurrentMode == WorkMode.Mux;
+        get => CurrentMode == WorkMode.SingleFile;
         set
         {
             if (value)
             {
-                SetMode(WorkMode.Mux);
+                SetMode(WorkMode.SingleFile);
             }
         }
     }
 
-    public bool IsExtractMode
+    public bool IsBatchMode
     {
-        get => CurrentMode == WorkMode.Extract;
+        get => CurrentMode == WorkMode.Batch;
         set
         {
             if (value)
             {
-                SetMode(WorkMode.Extract);
-            }
-        }
-    }
-
-    public bool IsConvertMode
-    {
-        get => CurrentMode == WorkMode.Convert;
-        set
-        {
-            if (value)
-            {
-                SetMode(WorkMode.Convert);
+                SetMode(WorkMode.Batch);
             }
         }
     }
@@ -116,13 +101,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            if (CurrentMode == WorkMode.Mux && value.Container is not null)
+            if (value.Container is not null)
             {
                 _muxContainer = value.Container;
-            }
-            else if (value.Target is not null)
-            {
-                _currentTargetId = value.Target.Id;
             }
 
             if (!_outputPathDirty)
@@ -228,8 +209,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool HasMedia => MediaItems.Count > 0;
 
-    public bool IsBatchOutput =>
-        CurrentMode is WorkMode.Extract or WorkMode.Convert && OrderedSelectedTracks().Count > 1;
+    public bool IsBatchOutput => CurrentMode == WorkMode.Batch;
 
     public bool CanRun => HasMedia
         && !IsRunning
@@ -241,16 +221,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public bool CanModifyInputs => !IsRunning;
 
     public bool CanMoveSelectedTrack =>
-        !IsRunning && CurrentMode == WorkMode.Mux && SelectedOrderItem is not null;
+        !IsRunning && CurrentMode == WorkMode.SingleFile && SelectedOrderItem is not null;
 
-    public string RunButtonText => CurrentMode switch
-    {
-        WorkMode.Mux => "开始封装",
-        WorkMode.Extract => "开始提取",
-        _ => "开始转换",
-    };
+    public string RunButtonText => CurrentMode == WorkMode.Batch ? "开始批量" : "开始处理";
 
-    public string OutputBrowseLabel => IsBatchOutput ? "选择文件夹" : "另存为";
+    public string OutputBrowseLabel => IsBatchOutput ? "选择文件夹" : "修改";
 
     private WorkMode CurrentMode => _currentMode;
 
@@ -285,7 +260,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                 MediaItems.Add(new MediaItemViewModel(media));
                 foreach (var track in media.Tracks)
                 {
-                    Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged));
+                    Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));
                 }
 
                 UpdateTrackKindLabels();
@@ -379,7 +354,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _modeSelectedOrders[mode].Clear();
         }
 
-        _currentTargetId = null;
         _outputPathDirty = false;
         SetOutputPath(string.Empty);
     }

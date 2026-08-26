@@ -141,4 +141,29 @@ public sealed class MuxPlannerTests
         CollectionAssert.Contains(arguments.ToList(), "aac");
         Assert.AreEqual(1, arguments.Count(value => value == "-map"));
     }
+
+    [TestMethod]
+    public void BuildArguments_AppliesPerTrackTargetCodecForMux()
+    {
+        var video = TestTracks.Create("video", "h264");
+        var audio = TestTracks.Create("audio", "aac", 1);
+        var media = new[] { TestTracks.Media(video, audio) };
+        var target = ExtractPlanner.ListConvertTargets(video).Single(item => item.Id == "video-mp4-h264");
+
+        var arguments = MuxPlanner.BuildArguments(
+            media,
+            [video, audio],
+            "mp4",
+            @"C:\Out\result.mp4",
+            new Dictionary<string, OutputTarget>
+            {
+                [video.TrackKey] = target,
+            });
+
+        var codecIndex = Array.IndexOf(arguments.ToArray(), "-c:v:0");
+        Assert.IsTrue(codecIndex >= 0);
+        Assert.AreEqual("libx264", arguments[codecIndex + 1]);
+        CollectionAssert.Contains(arguments.ToList(), "-c:a");
+        CollectionAssert.Contains(arguments.ToList(), "copy");
+    }
 }

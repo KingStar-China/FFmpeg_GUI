@@ -21,7 +21,8 @@ public static class MuxPlanner
 
     public static IReadOnlyList<string> Validate(
         IReadOnlyList<TrackInfo> selectedTracks,
-        string outputContainer)
+        string outputContainer,
+        IReadOnlyDictionary<string, OutputTarget>? targetByTrackKey = null)
     {
         var issues = new List<string>();
         if (selectedTracks.Count == 0)
@@ -55,10 +56,24 @@ public static class MuxPlanner
         {
             foreach (var track in selectedTracks.Where(track => track.Kind == "subtitle"))
             {
+                if (targetByTrackKey?.TryGetValue(track.TrackKey, out var target) == true
+                    && target.Mode == "transcode"
+                    && target.CodecArguments.Contains("mov_text", StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 if (!IsMp4TextSubtitle(track.Codec))
                 {
                     issues.Add(
                         $"MP4 不支持当前字幕轨：{track.SourceFileName} / 轨道 {track.StreamIndex} / {track.Codec}。");
+                }
+
+                if (targetByTrackKey?.TryGetValue(track.TrackKey, out target) == true
+                    && target.Mode == "transcode"
+                    && !target.CodecArguments.Contains("mov_text", StringComparer.OrdinalIgnoreCase))
+                {
+                    issues.Add($"MP4 字幕目标编码必须是 MOV_TEXT：{track.SourceFileName} / 轨道 {track.StreamIndex}。");
                 }
             }
         }
@@ -123,7 +138,8 @@ public static class MuxPlanner
         IReadOnlyList<MediaInfo> media,
         IReadOnlyList<TrackInfo> selectedTracks,
         string outputContainer,
-        string outputPath)
+        string outputPath,
+        IReadOnlyDictionary<string, OutputTarget>? targetByTrackKey = null)
     {
         var container = NormalizeContainer(outputContainer);
         if (container == "mp4" && IsAudioOnlySelection(selectedTracks))
@@ -180,6 +196,11 @@ public static class MuxPlanner
                     outputVideoIndex++;
                 }
             }
+
+            if (targetByTrackKey is not null)
+            {
+                AddTargetCodecArguments(arguments, selectedTracks, targetByTrackKey);
+            }
         }
 
         arguments.Add(outputPath);
@@ -218,6 +239,49 @@ public static class MuxPlanner
             "flac" => ["-c:a", "flac"],
             "opus" => ["-c:a", "libopus", "-b:a", "160k"],
             _ => ["-c:a", "aac", "-b:a", "192k"],
+        };
+
+    private static void AddTargetCodecArguments(
+        List<string> arguments,
+        IReadOnlyList<TrackInfo> selectedTracks,
+        IReadOnlyDictionary<string, OutputTarget> targetByTrackKey)
+    {
+        var videoIndex = 0;
+        var audioIndex = 0;
+        var subtitleIndex = 0;
+        foreach (var track in selectedTracks)
+        {
+            var outputIndex = track.Kind switch
+            {
+                "video" => videoIndex++,
+                "audio" => audioIndex++,
+                "subtitle" => subtitleIndex++,
+                _ => -1,
+            };
+            if (outputIndex < 0
+                || !targetByTrackKey.TryGetValue(track.TrackKey, out var target)
+                || target.Mode != "transcode")
+            {
+                continue;
+            }
+
+            foreach (var argument in target.CodecArguments)
+            {
+                arguments.Add(AddStreamSpecifier(argument, track.Kind, outputIndex));
+            }
+        }
+    }
+
+    private static string AddStreamSpecifier(string argument, string kind, int outputIndex) =>
+        argument switch
+        {
+            "-c:v" or "-codec:v" => $"-c:v:{outputIndex}",
+            "-c:a" or "-codec:a" => $"-c:a:{outputIndex}",
+            "-c:s" or "-codec:s" => $"-c:s:{outputIndex}",
+            "-b:v" => $"-b:v:{outputIndex}",
+            "-b:a" => $"-b:a:{outputIndex}",
+            "-frames:v" => $"-frames:v:{outputIndex}",
+            _ => argument,
         };
 
     private static string NormalizeContainer(string outputContainer) =>

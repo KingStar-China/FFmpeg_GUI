@@ -14,11 +14,11 @@ public sealed partial class MainWindowViewModel
 
         PersistCurrentModeSelection();
         _currentMode = mode;
-        OnPropertiesChanged(nameof(IsMuxMode), nameof(IsExtractMode), nameof(IsConvertMode));
+        OnPropertiesChanged(nameof(IsSingleFileMode), nameof(IsBatchMode));
         RestoreCurrentModeSelection();
         ApplySelectionConstraints(null);
         SyncSelectedTrackOrder();
-        StatusText = "已切换模式";
+        StatusText = mode == WorkMode.Batch ? "批量模式暂未开放" : "已切换为单文件模式";
         RefreshState();
     }
 
@@ -32,6 +32,14 @@ public sealed partial class MainWindowViewModel
         ApplySelectionConstraints(changedTrack);
         SyncSelectedTrackOrder();
         RefreshState();
+    }
+
+    private void OnTrackTargetChanged(TrackItemViewModel changedTrack)
+    {
+        if (!IsRunning)
+        {
+            RefreshState();
+        }
     }
 
     private void UpdateTrackKindLabels()
@@ -107,49 +115,13 @@ public sealed partial class MainWindowViewModel
     private void ApplySelectionConstraints(TrackItemViewModel? changedTrack)
     {
         var supportedTracks = Tracks.Where(track => track.IsSupported).ToArray();
-        if (CurrentMode == WorkMode.Extract)
+        if (CurrentMode == WorkMode.Batch)
         {
             UpdateTrackSelectability();
             return;
         }
 
         _suppressTrackChanges = true;
-        if (CurrentMode == WorkMode.Convert)
-        {
-            var selectedTracks = supportedTracks.Where(track => track.IsSelected).ToArray();
-            string? keepGroup = null;
-            if (changedTrack is { IsSelected: true })
-            {
-                keepGroup = changedTrack.Track.ConvertGroup;
-            }
-            else if (selectedTracks.Length > 0)
-            {
-                foreach (var key in _modeSelectedOrders[CurrentMode])
-                {
-                    var match = selectedTracks.FirstOrDefault(track => track.TrackKey == key);
-                    if (match is not null)
-                    {
-                        keepGroup = match.Track.ConvertGroup;
-                        break;
-                    }
-                }
-
-                keepGroup ??= selectedTracks[0].Track.ConvertGroup;
-            }
-
-            if (keepGroup is not null)
-            {
-                foreach (var track in selectedTracks.Where(track => track.Track.ConvertGroup != keepGroup))
-                {
-                    track.SetSelectedSilently(false);
-                }
-            }
-
-            _suppressTrackChanges = false;
-            UpdateTrackSelectability();
-            return;
-        }
-
         var selectedVideos = supportedTracks
             .Where(track => track.IsSelected && track.Track.Kind == "video" && !track.Track.IsCover)
             .ToArray();
@@ -210,10 +182,6 @@ public sealed partial class MainWindowViewModel
 
     private void UpdateTrackSelectability()
     {
-        var convertGroup = CurrentMode == WorkMode.Convert
-            ? Tracks.FirstOrDefault(track => track.IsSelected)?.Track.ConvertGroup
-            : null;
-
         foreach (var track in Tracks)
         {
             if (!track.IsSupported)
@@ -222,12 +190,9 @@ public sealed partial class MainWindowViewModel
                 continue;
             }
 
-            if (CurrentMode == WorkMode.Convert
-                && convertGroup is not null
-                && !track.IsSelected
-                && track.Track.ConvertGroup != convertGroup)
+            if (CurrentMode == WorkMode.Batch)
             {
-                track.SetSelectable(false, "转换模式下只能同时选择同类型轨道。");
+                track.SetSelectable(false, "批量模式暂未开放。");
                 continue;
             }
 
@@ -265,7 +230,7 @@ public sealed partial class MainWindowViewModel
 
         var selectableTracks = Tracks.Where(track => track.IsSupported).ToArray();
         var selectedKeys = new List<string>();
-        if (CurrentMode == WorkMode.Mux)
+        if (CurrentMode == WorkMode.SingleFile)
         {
             var normalVideos = selectableTracks
                 .Where(track => track.Track.Kind == "video" && !track.Track.IsCover)
@@ -288,15 +253,9 @@ public sealed partial class MainWindowViewModel
                 selectedKeys.AddRange(nonVideos.Select(track => track.TrackKey));
             }
         }
-        else if (CurrentMode == WorkMode.Extract)
-        {
-            selectedKeys.AddRange(selectableTracks.Select(track => track.TrackKey));
-        }
         else
         {
-            selectedKeys.AddRange(selectableTracks
-                .Where(track => track.Track.ConvertGroup == triggerTrack.Track.ConvertGroup)
-                .Select(track => track.TrackKey));
+            selectedKeys.AddRange(selectableTracks.Select(track => track.TrackKey));
         }
 
         var selectedSet = selectedKeys.ToHashSet(StringComparer.Ordinal);
@@ -364,12 +323,21 @@ public sealed partial class MainWindowViewModel
     private void RefreshOutputOptions()
     {
         var selectedTracks = OrderedSelectedTracks();
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = CurrentMode == WorkMode.SingleFile
+            ? TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey)
+            : SingleFileOperation.None;
         _refreshing = true;
         OutputOptions.Clear();
 
-        if (CurrentMode == WorkMode.Mux)
+        if (CurrentMode == WorkMode.SingleFile)
         {
-            if (MuxPlanner.IsAudioOnlySelection(selectedTracks))
+            if (operation == SingleFileOperation.Mux)
+            {
+                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
+            }
+            else if (operation == SingleFileOperation.AudioMix)
             {
                 OutputOptions.Add(OutputOptionViewModel.Mux("m4a", "M4A（AAC 混音，默认）"));
                 OutputOptions.Add(OutputOptionViewModel.Mux("mp3", "MP3（混音）"));
@@ -378,44 +346,36 @@ public sealed partial class MainWindowViewModel
                 OutputOptions.Add(OutputOptionViewModel.Mux("flac", "FLAC（无损混音）"));
                 OutputOptions.Add(OutputOptionViewModel.Mux("opus", "Opus（混音）"));
             }
-            else
+            else if ((operation is SingleFileOperation.Extract or SingleFileOperation.Convert)
+                     && selectedTracks.Count == 1
+                     && targetByTrackKey.TryGetValue(selectedTracks[0].TrackKey, out var target))
             {
-                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4"));
-                OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
-            }
-        }
-        else if (CurrentMode == WorkMode.Extract && selectedTracks.Count > 1)
-        {
-            OutputOptions.Add(OutputOptionViewModel.BatchExtract());
-        }
-        else
-        {
-            IReadOnlyList<OutputTarget> targets = CurrentMode == WorkMode.Extract
-                ? ExtractPlanner.ListExtractTargets(selectedTracks.Count == 1 ? selectedTracks[0] : null)
-                : ExtractPlanner.CommonConvertTargets(selectedTracks);
-            foreach (var target in targets)
-            {
-                OutputOptions.Add(OutputOptionViewModel.ForTarget(target));
+                var outputTarget = target with
+                {
+                    Label = $"{target.Extension.ToUpperInvariant()}（{TrackTargetPlanner.OperationLabel(operation)}） (*.{target.Extension})",
+                };
+                OutputOptions.Add(OutputOptionViewModel.ForTarget(outputTarget));
             }
         }
 
-        var selectedOption = CurrentMode == WorkMode.Mux
+        var selectedOption = operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix
             ? OutputOptions.FirstOrDefault(option => option.Container == _muxContainer)
-            : OutputOptions.FirstOrDefault(option => option.Key == _currentTargetId);
+            : null;
         selectedOption ??= OutputOptions.FirstOrDefault();
         _selectedOutputOption = selectedOption;
         OnPropertyChanged(nameof(SelectedOutputOption));
-        if (CurrentMode == WorkMode.Mux && selectedOption?.Container is not null)
+        if (selectedOption?.Container is not null)
         {
             _muxContainer = selectedOption.Container;
-        }
-        else if (selectedOption?.Target is not null)
-        {
-            _currentTargetId = selectedOption.Target.Id;
         }
 
         _refreshing = false;
     }
+
+    private IReadOnlyDictionary<string, OutputTarget> SelectedTargetMap() =>
+        OrderedSelectedTrackItems()
+            .Where(item => item.SelectedTarget is not null)
+            .ToDictionary(item => item.TrackKey, item => item.SelectedTarget!, StringComparer.Ordinal);
 
     private void RefreshSelectedTrackItems()
     {
@@ -449,15 +409,30 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
+        if (CurrentMode == WorkMode.Batch)
+        {
+            SummaryText = "批量模式暂未开放。";
+            ValidationText = "批量模式暂未开放。";
+            ValidationDetails = string.Empty;
+            CommandPreview = string.Empty;
+            RaiseActionState();
+            return;
+        }
+
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey);
         var summary = $"共导入 {MediaItems.Count} 个文件，当前勾选 {selectedTracks.Count} 条轨道。\n"
             + $"视频 {selectedTracks.Count(track => track.Kind == "video")} / "
             + $"音频 {selectedTracks.Count(track => track.Kind == "audio")} / "
             + $"字幕 {selectedTracks.Count(track => track.Kind == "subtitle")}";
-        if (CurrentMode == WorkMode.Mux && MuxPlanner.IsAudioOnlySelection(selectedTracks))
+        if (selectedTracks.Count > 0)
         {
-            summary += selectedTracks.Count > 1
-                ? "\n多条音频将混音为 1 条音频流。"
-                : "\n将输出为 1 条音频流。";
+            summary += $"\n当前操作：{TrackTargetPlanner.OperationLabel(operation)}";
+        }
+
+        if (operation == SingleFileOperation.AudioMix)
+        {
+            summary += "\n多条音频将混音为 1 条音频流。\n右侧输出格式决定最终混音编码。";
         }
 
         SummaryText = summary;
@@ -472,43 +447,31 @@ public sealed partial class MainWindowViewModel
     private IReadOnlyList<string> CollectIssues()
     {
         var selectedTracks = OrderedSelectedTracks();
-        if (CurrentMode == WorkMode.Mux)
+        if (CurrentMode == WorkMode.Batch)
         {
-            var muxIssues = MuxPlanner.Validate(selectedTracks, _muxContainer).ToList();
-            if (!string.IsNullOrWhiteSpace(OutputPath)
-                && !MuxPlanner.IsOutputPathDistinct(MediaItems.Select(item => item.Media).ToArray(), OutputPath))
-            {
-                muxIssues.Add("输出文件不能与任一输入文件相同，请修改输出文件名。");
-            }
-
-            return muxIssues;
+            return ["批量模式暂未开放。"];
         }
 
-        var issues = ExtractPlanner.Validate(selectedTracks, CurrentMode).ToList();
-        if (CurrentMode == WorkMode.Convert
-            && issues.Count == 0
-            && selectedTracks.Any(track => track.ConvertGroup != selectedTracks[0].ConvertGroup))
+        if (selectedTracks.Count == 0)
         {
-            issues.Add("批量转换时只能同时选择同类型轨道。");
+            return ["单文件模式下至少要勾选 1 条轨道。"];
         }
 
-        if (CurrentMode == WorkMode.Extract && selectedTracks.Count > 1)
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey);
+        var issues = selectedTracks
+            .Where(track => !targetByTrackKey.ContainsKey(track.TrackKey))
+            .Select(track => $"{track.SourceFileName} / 轨道 {track.StreamIndex} 没有可用的目标编码。")
+            .ToList();
+        if (operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix)
         {
-            return issues;
+            issues.AddRange(MuxPlanner.Validate(selectedTracks, _muxContainer, targetByTrackKey));
         }
 
-        if (selectedTracks.Count == 1
-            && !string.IsNullOrWhiteSpace(OutputPath)
+        if (!string.IsNullOrWhiteSpace(OutputPath)
             && !MuxPlanner.IsOutputPathDistinct(MediaItems.Select(item => item.Media).ToArray(), OutputPath))
         {
             issues.Add("输出文件不能与任一输入文件相同，请修改输出文件名。");
-        }
-
-        if (issues.Count == 0 && SelectedOutputOption?.Target is null)
-        {
-            issues.Add(CurrentMode == WorkMode.Extract
-                ? "当前轨道没有可用的提取输出格式。"
-                : "当前轨道没有可用的转换输出格式。");
         }
 
         return issues;
@@ -518,7 +481,11 @@ public sealed partial class MainWindowViewModel
     {
         string? defaultPath = null;
         var selectedTracks = OrderedSelectedTracks();
-        if (HasMedia && CurrentMode == WorkMode.Mux)
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey);
+        if (HasMedia
+            && CurrentMode == WorkMode.SingleFile
+            && (operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix))
         {
             defaultPath = MuxPlanner.BuildDefaultOutputPath(
                 MediaItems.Select(item => item.Media).ToArray(),
@@ -526,12 +493,9 @@ public sealed partial class MainWindowViewModel
                 selectedTracks);
         }
         else if (HasMedia
-                 && CurrentMode is WorkMode.Extract or WorkMode.Convert
-                 && selectedTracks.Count > 1)
-        {
-            defaultPath = Path.GetDirectoryName(selectedTracks[0].SourcePath);
-        }
-        else if (selectedTracks.Count == 1 && SelectedOutputOption?.Target is { } target)
+                 && CurrentMode == WorkMode.SingleFile
+                 && selectedTracks.Count == 1
+                 && targetByTrackKey.TryGetValue(selectedTracks[0].TrackKey, out var target))
         {
             defaultPath = ExtractPlanner.BuildOutputPath(selectedTracks[0], target);
         }
@@ -550,100 +514,50 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        var selectedTracks = OrderedSelectedTracks();
-        if (CurrentMode == WorkMode.Mux)
+        if (CurrentMode == WorkMode.Batch)
         {
-            if (string.IsNullOrWhiteSpace(OutputPath))
-            {
-                CommandPreview = "请先选择输出文件夹并填写文件名。";
-                return;
-            }
+            CommandPreview = "批量模式暂未开放。";
+            return;
+        }
 
+        var selectedTracks = OrderedSelectedTracks();
+        if (selectedTracks.Count == 0)
+        {
+            CommandPreview = "请先选择轨道。";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(OutputPath))
+        {
+            CommandPreview = "请先选择输出路径。";
+            return;
+        }
+
+        var targetByTrackKey = SelectedTargetMap();
+        var operation = TrackTargetPlanner.Classify(selectedTracks, targetByTrackKey);
+        if (operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix)
+        {
             var invocation = new ProcessInvocation(
                 _toolLocator.FindFfmpeg() ?? "ffmpeg",
                 MuxPlanner.BuildArguments(
                     MediaItems.Select(item => item.Media).ToArray(),
                     selectedTracks,
                     _muxContainer,
-                    OutputPath));
+                    OutputPath,
+                    targetByTrackKey));
             CommandPreview = CommandLineFormatter.Format(invocation.Program, invocation.Arguments);
             return;
         }
 
-        if (selectedTracks.Count == 1 && SelectedOutputOption?.Target is { } singleTarget)
+        if (selectedTracks.Count == 1
+            && targetByTrackKey.TryGetValue(selectedTracks[0].TrackKey, out var singleTarget))
         {
-            if (string.IsNullOrWhiteSpace(OutputPath))
-            {
-                CommandPreview = "请先选择输出文件夹并填写文件名。";
-                return;
-            }
-
             var invocation = BuildPreviewExtractInvocation(selectedTracks[0], singleTarget, OutputPath);
             CommandPreview = CommandLineFormatter.Format(invocation.Program, invocation.Arguments);
             return;
         }
 
-        if (CurrentMode == WorkMode.Extract && selectedTracks.Count > 1)
-        {
-            if (string.IsNullOrWhiteSpace(OutputPath))
-            {
-                CommandPreview = "请先选择输出文件夹。";
-                return;
-            }
-
-            var directory = ResolveOutputDirectory(OutputPath);
-            var commands = new List<string>();
-            foreach (var track in selectedTracks.Take(3))
-            {
-                var target = ExtractPlanner.ListExtractTargets(track).FirstOrDefault();
-                if (target is null)
-                {
-                    continue;
-                }
-
-                var output = ExtractPlanner.BuildOutputPathInDirectory(track, target, directory);
-                var invocation = BuildPreviewExtractInvocation(track, target, output);
-                commands.Add(CommandLineFormatter.Format(invocation.Program, invocation.Arguments));
-            }
-
-            if (selectedTracks.Count > 3)
-            {
-                commands.Add($"... 共 {selectedTracks.Count} 条批量提取命令");
-            }
-
-            CommandPreview = commands.Count == 0
-                ? "当前选中的轨道没有可用的提取输出格式。"
-                : string.Join(Environment.NewLine + Environment.NewLine, commands);
-            return;
-        }
-
-        if (CurrentMode == WorkMode.Convert
-            && selectedTracks.Count > 1
-            && SelectedOutputOption?.Target is { } batchTarget)
-        {
-            if (string.IsNullOrWhiteSpace(OutputPath))
-            {
-                CommandPreview = "请先选择输出文件夹。";
-                return;
-            }
-
-            var directory = ResolveOutputDirectory(OutputPath);
-            var commands = selectedTracks.Take(3).Select(track =>
-            {
-                var output = ExtractPlanner.BuildOutputPathInDirectory(track, batchTarget, directory);
-                var invocation = BuildPreviewExtractInvocation(track, batchTarget, output);
-                return CommandLineFormatter.Format(invocation.Program, invocation.Arguments);
-            }).ToList();
-            if (selectedTracks.Count > 3)
-            {
-                commands.Add($"... 共 {selectedTracks.Count} 条批量转换命令");
-            }
-
-            CommandPreview = string.Join(Environment.NewLine + Environment.NewLine, commands);
-            return;
-        }
-
-        CommandPreview = "请先选择轨道并指定输出格式。";
+        CommandPreview = "当前选中的轨道没有可用的目标编码。";
     }
 
     private ProcessInvocation BuildPreviewExtractInvocation(

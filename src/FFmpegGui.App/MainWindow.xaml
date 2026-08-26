@@ -113,18 +113,15 @@
                                    Text="工作模式" />
                         <RadioButton Margin="0,0,18,0"
                                      VerticalAlignment="Center"
-                                     Content="封装"
+                                     Content="单文件"
                                      GroupName="WorkMode"
-                                     IsChecked="{Binding IsMuxMode, Mode=TwoWay}" />
-                        <RadioButton Margin="0,0,18,0"
-                                     VerticalAlignment="Center"
-                                     Content="提取"
-                                     GroupName="WorkMode"
-                                     IsChecked="{Binding IsExtractMode, Mode=TwoWay}" />
+                                     IsChecked="{Binding IsSingleFileMode, Mode=TwoWay}" />
                         <RadioButton VerticalAlignment="Center"
-                                     Content="转换"
+                                     Content="批量"
+                                     ToolTip="批量模式暂未开放"
                                      GroupName="WorkMode"
-                                     IsChecked="{Binding IsConvertMode, Mode=TwoWay}" />
+                                     IsEnabled="False"
+                                     IsChecked="{Binding IsBatchMode, Mode=TwoWay}" />
                     </StackPanel>
                 </Border>
 
@@ -207,6 +204,18 @@
                                 <DataGridTextColumn Width="58" Header="轨道" Binding="{Binding StreamIndex}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="82" Header="类型" Binding="{Binding KindDisplay}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="95" Header="Codec" Binding="{Binding Codec}" IsReadOnly="True" />
+                                <DataGridTemplateColumn Width="180" Header="目标编码">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <ComboBox MinWidth="150"
+                                                      ItemsSource="{Binding TargetOptions}"
+                                                      SelectedItem="{Binding SelectedTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      DisplayMemberPath="Label"
+                                                      ToolTip="{Binding TargetCodec}"
+                                                      IsEnabled="{Binding IsSelectable}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Width="70" Header="语言" Binding="{Binding Language}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="*" MinWidth="110" Header="标题" Binding="{Binding Title}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="120" Header="标记" Binding="{Binding Flags}" IsReadOnly="True" />
@@ -289,7 +298,7 @@
                                              ItemsSource="{Binding SelectedTrackItems}"
                                              SelectedItem="{Binding SelectedOrderItem, Mode=TwoWay}"
                                              DisplayMemberPath="DisplayText"
-                                             ToolTip="封装模式下可调整输出轨道顺序。" />
+                                             ToolTip="单文件模式下可调整输出轨道顺序。" />
                                     <StackPanel Grid.Row="1"
                                                 Margin="0,8,0,0"
                                                 HorizontalAlignment="Right"

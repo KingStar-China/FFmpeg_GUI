@@ -54,9 +54,9 @@ public static class ExtractPlanner
     public static IReadOnlyList<string> Validate(IReadOnlyList<TrackInfo> selectedTracks, WorkMode mode) =>
         selectedTracks.Count > 0
             ? []
-            : [mode == WorkMode.Convert
-                ? "转换模式下至少要勾选 1 条轨道。"
-                : "提取模式下至少要勾选 1 条轨道。"];
+            : [mode == WorkMode.Batch
+                ? "批量模式暂未开放。"
+                : "单文件模式下至少要勾选 1 条轨道。"];
 
     public static IReadOnlyList<OutputTarget> ListExtractTargets(TrackInfo? track)
     {

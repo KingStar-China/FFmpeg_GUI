@@ -8,10 +8,11 @@ public sealed class InvocationFactory(ToolLocator toolLocator)
         IReadOnlyList<MediaInfo> media,
         IReadOnlyList<TrackInfo> selectedTracks,
         string outputContainer,
-        string outputPath) =>
+        string outputPath,
+        IReadOnlyDictionary<string, OutputTarget>? targetByTrackKey = null) =>
         new(
             toolLocator.RequireFfmpeg(),
-            MuxPlanner.BuildArguments(media, selectedTracks, outputContainer, outputPath));
+            MuxPlanner.BuildArguments(media, selectedTracks, outputContainer, outputPath, targetByTrackKey));
 
     public ProcessInvocation CreateExtract(
         TrackInfo track,
