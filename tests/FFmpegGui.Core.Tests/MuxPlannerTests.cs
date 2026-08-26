@@ -31,11 +31,56 @@ public sealed class MuxPlannerTests
     }
 
     [TestMethod]
+    public void Validate_AllowsMultipleAudioTracksForM4aMix()
+    {
+        var tracks = new[]
+        {
+            TestTracks.Create("audio", "aac", 0, 0, sourcePath: @"C:\Media\voice.m4a"),
+            TestTracks.Create("audio", "aac", 0, 1, sourcePath: @"C:\Media\music.m4a"),
+        };
+
+        var issues = MuxPlanner.Validate(tracks, "m4a");
+
+        Assert.AreEqual(0, issues.Count);
+    }
+
+    [TestMethod]
+    public void Validate_RejectsVideoForAudioMixOutput()
+    {
+        var tracks = new[]
+        {
+            TestTracks.Create("video", "h264"),
+            TestTracks.Create("audio", "aac", 1),
+        };
+
+        var issues = MuxPlanner.Validate(tracks, "mp3");
+
+        Assert.HasCount(1, issues);
+        StringAssert.Contains(issues[0], "只能选择音频轨道");
+    }
+
+    [TestMethod]
     public void BuildDefaultOutputPath_UsesM4aForSingleAacTrack()
     {
         var audio = TestTracks.Create("audio", "aac", 1);
 
         var outputPath = MuxPlanner.BuildDefaultOutputPath([TestTracks.Media(audio)], "mp4", [audio]);
+
+        Assert.EndsWith(".m4a", outputPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public void BuildDefaultOutputPath_UsesM4aForMultipleAudioTracks()
+    {
+        var voice = TestTracks.Create("audio", "aac", 0, sourcePath: @"C:\Media\voice.m4a");
+        var music = TestTracks.Create("audio", "aac", 0, 1, sourcePath: @"C:\Media\music.m4a");
+        var media = new[]
+        {
+            TestTracks.Media(voice),
+            new MediaInfo(@"C:\Media\music.m4a", "music.m4a", "mov,mp4,m4a,3gp,3g2,mj2", 10, 1_000, [music]),
+        };
+
+        var outputPath = MuxPlanner.BuildDefaultOutputPath(media, "mp4", [voice, music]);
 
         Assert.EndsWith(".m4a", outputPath, StringComparison.OrdinalIgnoreCase);
     }
@@ -73,5 +118,27 @@ public sealed class MuxPlannerTests
             .ToArray();
         CollectionAssert.AreEqual(new[] { "1:2", "0:0", "0:3" }, maps);
         CollectionAssert.Contains(arguments.ToList(), "mov_text");
+    }
+
+    [TestMethod]
+    public void BuildArguments_MixesMultipleAudioTracksIntoSingleM4aStream()
+    {
+        var voice = TestTracks.Create("audio", "aac", 0, 0, sourcePath: @"C:\Media\voice.m4a");
+        var music = TestTracks.Create("audio", "aac", 0, 1, sourcePath: @"C:\Media\music.m4a");
+        var media = new[]
+        {
+            TestTracks.Media(voice),
+            new MediaInfo(@"C:\Media\music.m4a", "music.m4a", "mov,mp4,m4a,3gp,3g2,mj2", 10, 1_000, [music]),
+        };
+
+        var arguments = MuxPlanner.BuildArguments(media, [voice, music], "m4a", @"C:\Out\mix.m4a");
+
+        var filterIndex = Array.IndexOf(arguments.ToArray(), "-filter_complex");
+        Assert.IsTrue(filterIndex >= 0);
+        StringAssert.Contains(arguments[filterIndex + 1], "amix=inputs=2");
+        StringAssert.Contains(arguments[filterIndex + 1], "[0:0][1:0]");
+        CollectionAssert.Contains(arguments.ToList(), "[audio_mix]");
+        CollectionAssert.Contains(arguments.ToList(), "aac");
+        Assert.AreEqual(1, arguments.Count(value => value == "-map"));
     }
 }

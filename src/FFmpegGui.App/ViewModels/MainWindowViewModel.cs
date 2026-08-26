@@ -29,7 +29,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     };
 
     private WorkMode _currentMode = WorkMode.Mux;
-    private string _muxContainer = "mkv";
+    private string _muxContainer = "mp4";
     private string? _currentTargetId;
     private OutputOptionViewModel? _selectedOutputOption;
     private SelectedTrackItemViewModel? _selectedOrderItem;

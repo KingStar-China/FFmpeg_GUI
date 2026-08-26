@@ -369,8 +369,20 @@ public sealed partial class MainWindowViewModel
 
         if (CurrentMode == WorkMode.Mux)
         {
-            OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
-            OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4"));
+            if (MuxPlanner.IsAudioOnlySelection(selectedTracks))
+            {
+                OutputOptions.Add(OutputOptionViewModel.Mux("m4a", "M4A（AAC 混音，默认）"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("mp3", "MP3（混音）"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("aac", "AAC（混音）"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("wav", "WAV（PCM 混音）"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("flac", "FLAC（无损混音）"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("opus", "Opus（混音）"));
+            }
+            else
+            {
+                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
+            }
         }
         else if (CurrentMode == WorkMode.Extract && selectedTracks.Count > 1)
         {
@@ -393,7 +405,11 @@ public sealed partial class MainWindowViewModel
         selectedOption ??= OutputOptions.FirstOrDefault();
         _selectedOutputOption = selectedOption;
         OnPropertyChanged(nameof(SelectedOutputOption));
-        if (selectedOption?.Target is not null)
+        if (CurrentMode == WorkMode.Mux && selectedOption?.Container is not null)
+        {
+            _muxContainer = selectedOption.Container;
+        }
+        else if (selectedOption?.Target is not null)
         {
             _currentTargetId = selectedOption.Target.Id;
         }
@@ -433,10 +449,18 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        SummaryText = $"共导入 {MediaItems.Count} 个文件，当前勾选 {selectedTracks.Count} 条轨道。\n"
+        var summary = $"共导入 {MediaItems.Count} 个文件，当前勾选 {selectedTracks.Count} 条轨道。\n"
             + $"视频 {selectedTracks.Count(track => track.Kind == "video")} / "
             + $"音频 {selectedTracks.Count(track => track.Kind == "audio")} / "
             + $"字幕 {selectedTracks.Count(track => track.Kind == "subtitle")}";
+        if (CurrentMode == WorkMode.Mux && MuxPlanner.IsAudioOnlySelection(selectedTracks))
+        {
+            summary += selectedTracks.Count > 1
+                ? "\n多条音频将混音为 1 条音频流。"
+                : "\n将输出为 1 条音频流。";
+        }
+
+        SummaryText = summary;
 
         var issues = CollectIssues();
         ValidationText = issues.Count == 0 ? "当前没有阻断错误。" : issues[0];

@@ -2,10 +2,22 @@ namespace FFmpegGui.Core;
 
 public static class MuxPlanner
 {
+    private static readonly HashSet<string> AudioMixContainers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "m4a", "mp3", "aac", "wav", "flac", "opus",
+    };
+
     private static readonly HashSet<string> Mp4TextSubtitleCodecs = new(StringComparer.OrdinalIgnoreCase)
     {
         "ass", "mov_text", "srt", "ssa", "subrip", "text", "tx3g", "webvtt",
     };
+
+    public static bool IsAudioOnlySelection(IReadOnlyList<TrackInfo> selectedTracks) =>
+        selectedTracks.Count > 0
+        && selectedTracks.All(track => track.Kind == "audio" && !track.IsCover);
+
+    public static bool IsAudioMixContainer(string outputContainer) =>
+        AudioMixContainers.Contains(NormalizeContainer(outputContainer));
 
     public static IReadOnlyList<string> Validate(
         IReadOnlyList<TrackInfo> selectedTracks,
@@ -15,6 +27,17 @@ public static class MuxPlanner
         if (selectedTracks.Count == 0)
         {
             issues.Add("封装模式下至少要勾选 1 条轨道。");
+            return issues;
+        }
+
+        var container = NormalizeContainer(outputContainer);
+        if (IsAudioMixContainer(container))
+        {
+            if (!IsAudioOnlySelection(selectedTracks))
+            {
+                issues.Add("M4A、MP3、AAC、WAV、FLAC、Opus 输出只能选择音频轨道。");
+            }
+
             return issues;
         }
 
@@ -28,7 +51,7 @@ public static class MuxPlanner
             issues.Add("封装模式下最多只能勾选 1 张封面图。");
         }
 
-        if (outputContainer.Equals("mp4", StringComparison.OrdinalIgnoreCase))
+        if (container == "mp4")
         {
             foreach (var track in selectedTracks.Where(track => track.Kind == "subtitle"))
             {
@@ -51,10 +74,13 @@ public static class MuxPlanner
         string outputContainer,
         IReadOnlyList<TrackInfo>? selectedTracks = null)
     {
-        var extension = outputContainer.Equals("mp4", StringComparison.OrdinalIgnoreCase)
-            && IsAacAudioOnlySelection(selectedTracks ?? [])
-                ? ".m4a"
-                : $".{outputContainer}";
+        var container = NormalizeContainer(outputContainer);
+        if (container == "mp4" && IsAudioOnlySelection(selectedTracks ?? []))
+        {
+            container = "m4a";
+        }
+
+        var extension = $".{container}";
 
         if (media.Count == 0)
         {
@@ -99,47 +125,60 @@ public static class MuxPlanner
         string outputContainer,
         string outputPath)
     {
+        var container = NormalizeContainer(outputContainer);
+        if (container == "mp4" && IsAudioOnlySelection(selectedTracks))
+        {
+            container = "m4a";
+        }
+
         var arguments = new List<string> { "-y", "-nostdin", "-progress", "pipe:1", "-nostats" };
         foreach (var item in media)
         {
             arguments.AddRange(["-i", item.InputPath]);
         }
 
-        foreach (var track in selectedTracks)
+        if (IsAudioOnlySelection(selectedTracks) && IsAudioMixContainer(container))
         {
-            arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
-        }
-
-        if (outputContainer.Equals("mkv", StringComparison.OrdinalIgnoreCase))
-        {
-            arguments.AddRange(["-c", "copy"]);
+            AddAudioMixArguments(arguments, selectedTracks, container);
         }
         else
         {
-            if (selectedTracks.Any(track => track.Kind == "video"))
+            foreach (var track in selectedTracks)
             {
-                arguments.AddRange(["-c:v", "copy"]);
+                arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
             }
 
-            if (selectedTracks.Any(track => track.Kind == "audio"))
+            if (container == "mkv")
             {
-                arguments.AddRange(["-c:a", "copy"]);
+                arguments.AddRange(["-c", "copy"]);
             }
-
-            if (selectedTracks.Any(track => track.Kind == "subtitle"))
+            else
             {
-                arguments.AddRange(["-c:s", "mov_text"]);
-            }
-
-            var outputVideoIndex = 0;
-            foreach (var track in selectedTracks.Where(track => track.Kind == "video"))
-            {
-                if (track.IsCover)
+                if (selectedTracks.Any(track => track.Kind == "video"))
                 {
-                    arguments.AddRange([$"-disposition:v:{outputVideoIndex}", "attached_pic"]);
+                    arguments.AddRange(["-c:v", "copy"]);
                 }
 
-                outputVideoIndex++;
+                if (selectedTracks.Any(track => track.Kind == "audio"))
+                {
+                    arguments.AddRange(["-c:a", "copy"]);
+                }
+
+                if (selectedTracks.Any(track => track.Kind == "subtitle"))
+                {
+                    arguments.AddRange(["-c:s", "mov_text"]);
+                }
+
+                var outputVideoIndex = 0;
+                foreach (var track in selectedTracks.Where(track => track.Kind == "video"))
+                {
+                    if (track.IsCover)
+                    {
+                        arguments.AddRange([$"-disposition:v:{outputVideoIndex}", "attached_pic"]);
+                    }
+
+                    outputVideoIndex++;
+                }
             }
         }
 
@@ -147,9 +186,40 @@ public static class MuxPlanner
         return arguments;
     }
 
-    private static bool IsAacAudioOnlySelection(IReadOnlyList<TrackInfo> selectedTracks) =>
-        selectedTracks.Count == 1
-        && selectedTracks[0].Kind == "audio"
-        && !selectedTracks[0].IsCover
-        && selectedTracks[0].Codec.Equals("aac", StringComparison.OrdinalIgnoreCase);
+    private static void AddAudioMixArguments(
+        List<string> arguments,
+        IReadOnlyList<TrackInfo> selectedTracks,
+        string outputContainer)
+    {
+        if (selectedTracks.Count == 1)
+        {
+            var track = selectedTracks[0];
+            arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
+        }
+        else
+        {
+            var inputs = string.Concat(
+                selectedTracks.Select(track => $"[{track.SourceIndex}:{track.StreamIndex}]"));
+            var filter =
+                $"{inputs}amix=inputs={selectedTracks.Count}:duration=longest:dropout_transition=0:normalize=1[audio_mix]";
+            arguments.AddRange(["-filter_complex", filter, "-map", "[audio_mix]"]);
+        }
+
+        arguments.AddRange(GetAudioCodecArguments(outputContainer));
+    }
+
+    private static IReadOnlyList<string> GetAudioCodecArguments(string outputContainer) =>
+        outputContainer switch
+        {
+            "m4a" => ["-c:a", "aac", "-b:a", "192k"],
+            "mp3" => ["-c:a", "libmp3lame", "-b:a", "192k"],
+            "aac" => ["-c:a", "aac", "-b:a", "192k"],
+            "wav" => ["-c:a", "pcm_s16le"],
+            "flac" => ["-c:a", "flac"],
+            "opus" => ["-c:a", "libopus", "-b:a", "160k"],
+            _ => ["-c:a", "aac", "-b:a", "192k"],
+        };
+
+    private static string NormalizeContainer(string outputContainer) =>
+        outputContainer.Trim().ToLowerInvariant();
 }
