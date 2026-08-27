@@ -31,6 +31,10 @@ public sealed partial class MainWindowViewModel
 
         ApplySelectionConstraints(changedTrack);
         SyncSelectedTrackOrder();
+        if (changedTrack.IsSelected && IsMp4OutputSelected())
+        {
+            ApplyMp4TargetDefault(changedTrack);
+        }
         RefreshState();
     }
 
@@ -322,6 +326,7 @@ public sealed partial class MainWindowViewModel
 
     private void RefreshOutputOptions()
     {
+        var previousOutputContainer = _selectedOutputOption?.Container;
         var selectedTracks = OrderedSelectedTracks();
         var targetByTrackKey = SelectedTargetMap();
         var operation = CurrentMode == WorkMode.SingleFile
@@ -334,7 +339,7 @@ public sealed partial class MainWindowViewModel
         {
             if (operation == SingleFileOperation.Mux)
             {
-                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4"));
+                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4（H.264 + AAC）"));
                 OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
             }
             else if (operation == SingleFileOperation.AudioMix)
@@ -369,7 +374,44 @@ public sealed partial class MainWindowViewModel
             _muxContainer = selectedOption.Container;
         }
 
+        if (string.Equals(selectedOption?.Container, "mp4", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(previousOutputContainer, "mp4", StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyMp4TargetDefaults();
+        }
+
         _refreshing = false;
+    }
+
+    private bool IsMp4OutputSelected() =>
+        string.Equals(_selectedOutputOption?.Container, "mp4", StringComparison.OrdinalIgnoreCase);
+
+    private void ApplyMp4TargetDefaults()
+    {
+        foreach (var track in OrderedSelectedTrackItems())
+        {
+            ApplyMp4TargetDefault(track);
+        }
+    }
+
+    private static void ApplyMp4TargetDefault(TrackItemViewModel track)
+    {
+        var targetId = track.Track.Kind switch
+        {
+            "video" when !track.Track.IsCover => "video-mp4-h264",
+            "audio" when !track.Track.IsCover => "audio-m4a",
+            _ => null,
+        };
+        if (targetId is null)
+        {
+            return;
+        }
+
+        var target = track.TargetOptions.FirstOrDefault(item => item.Id == targetId);
+        if (target is not null)
+        {
+            track.SetTargetSilently(target);
+        }
     }
 
     private IReadOnlyDictionary<string, OutputTarget> SelectedTargetMap() =>
@@ -433,6 +475,13 @@ public sealed partial class MainWindowViewModel
         if (operation == SingleFileOperation.AudioMix)
         {
             summary += "\n多条音频将混音为 1 条音频流。\n右侧输出格式决定最终混音编码。";
+        }
+        else if (operation == SingleFileOperation.Mux
+                 && string.Equals(_muxContainer, "mp4", StringComparison.OrdinalIgnoreCase)
+                 && selectedTracks.Any(track => track.Kind == "video" && !track.IsCover)
+                 && selectedTracks.Any(track => track.Kind == "audio" && !track.IsCover))
+        {
+            summary += "\nMP4 输出：H.264 视频 + AAC 音频；多条音频将混音为 1 条音频流。";
         }
 
         SummaryText = summary;

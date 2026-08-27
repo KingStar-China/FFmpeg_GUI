@@ -104,6 +104,10 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             if (value.Container is not null)
             {
                 _muxContainer = value.Container;
+                if (string.Equals(_muxContainer, "mp4", StringComparison.OrdinalIgnoreCase))
+                {
+                    ApplyMp4TargetDefaults();
+                }
             }
 
             if (!_outputPathDirty)

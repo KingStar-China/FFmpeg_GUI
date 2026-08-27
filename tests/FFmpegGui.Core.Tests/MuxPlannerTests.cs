@@ -98,7 +98,7 @@ public sealed class MuxPlannerTests
     }
 
     [TestMethod]
-    public void BuildArguments_PreservesSelectedTrackOrderAndConvertsMp4Subtitles()
+    public void BuildArguments_PutsVideoBeforeAudioAndConvertsMp4Subtitles()
     {
         var audio = TestTracks.Create("audio", "aac", 2, 1, sourcePath: @"C:\Media\audio.mka");
         var video = TestTracks.Create("video", "h264", 0);
@@ -116,8 +116,10 @@ public sealed class MuxPlannerTests
             .Where(item => item.value == "-map")
             .Select(item => arguments[item.index + 1])
             .ToArray();
-        CollectionAssert.AreEqual(new[] { "1:2", "0:0", "0:3" }, maps);
+        CollectionAssert.AreEqual(new[] { "0:0", "1:2", "0:3" }, maps);
         CollectionAssert.Contains(arguments.ToList(), "mov_text");
+        CollectionAssert.Contains(arguments.ToList(), "libx264");
+        CollectionAssert.Contains(arguments.ToList(), "aac");
     }
 
     [TestMethod]
@@ -143,13 +145,11 @@ public sealed class MuxPlannerTests
     }
 
     [TestMethod]
-    public void BuildArguments_AppliesPerTrackTargetCodecForMux()
+    public void BuildArguments_Mp4AlwaysUsesH264AndAac()
     {
         var video = TestTracks.Create("video", "h264");
         var audio = TestTracks.Create("audio", "aac", 1);
         var media = new[] { TestTracks.Media(video, audio) };
-        var target = ExtractPlanner.ListConvertTargets(video).Single(item => item.Id == "video-mp4-h264");
-
         var arguments = MuxPlanner.BuildArguments(
             media,
             [video, audio],
@@ -157,13 +157,38 @@ public sealed class MuxPlannerTests
             @"C:\Out\result.mp4",
             new Dictionary<string, OutputTarget>
             {
-                [video.TrackKey] = target,
+                [video.TrackKey] = OutputTarget.Copy("video-copy", "复制", "mp4"),
+                [audio.TrackKey] = OutputTarget.Copy("audio-copy", "复制", "mka"),
             });
 
         var codecIndex = Array.IndexOf(arguments.ToArray(), "-c:v:0");
         Assert.IsTrue(codecIndex >= 0);
         Assert.AreEqual("libx264", arguments[codecIndex + 1]);
-        CollectionAssert.Contains(arguments.ToList(), "-c:a");
-        CollectionAssert.Contains(arguments.ToList(), "copy");
+        var audioCodecIndex = Array.IndexOf(arguments.ToArray(), "-c:a:0");
+        Assert.IsTrue(audioCodecIndex >= 0);
+        Assert.AreEqual("aac", arguments[audioCodecIndex + 1]);
+        CollectionAssert.Contains(arguments.ToList(), "yuv420p");
+        CollectionAssert.DoesNotContain(arguments.ToList(), "copy");
+    }
+
+    [TestMethod]
+    public void BuildArguments_Mp4MixesMultipleAudioTracksIntoOneAacStream()
+    {
+        var video = TestTracks.Create("video", "h264");
+        var voice = TestTracks.Create("audio", "mp3", 1, 0);
+        var music = TestTracks.Create("audio", "pcm_s16le", 2, 0);
+
+        var arguments = MuxPlanner.BuildArguments(
+            [TestTracks.Media(video, voice, music)],
+            [video, voice, music],
+            "mp4",
+            @"C:\Out\result.mp4");
+
+        var filterIndex = Array.IndexOf(arguments.ToArray(), "-filter_complex");
+        Assert.IsTrue(filterIndex >= 0);
+        StringAssert.Contains(arguments[filterIndex + 1], "amix=inputs=2");
+        CollectionAssert.Contains(arguments.ToList(), "[audio_mix]");
+        Assert.AreEqual(2, arguments.Count(value => value == "-map"));
+        CollectionAssert.Contains(arguments.ToList(), "aac");
     }
 }

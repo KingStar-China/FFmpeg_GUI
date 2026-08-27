@@ -153,7 +153,12 @@ public static class MuxPlanner
             arguments.AddRange(["-i", item.InputPath]);
         }
 
-        if (IsAudioOnlySelection(selectedTracks) && IsAudioMixContainer(container))
+        if (container == "mp4"
+            && selectedTracks.Any(track => track.Kind == "video" && !track.IsCover))
+        {
+            AddMp4VideoAudioArguments(arguments, selectedTracks);
+        }
+        else if (IsAudioOnlySelection(selectedTracks) && IsAudioMixContainer(container))
         {
             AddAudioMixArguments(arguments, selectedTracks, container);
         }
@@ -207,26 +212,99 @@ public static class MuxPlanner
         return arguments;
     }
 
+    private static void AddMp4VideoAudioArguments(
+        List<string> arguments,
+        IReadOnlyList<TrackInfo> selectedTracks)
+    {
+        var videos = selectedTracks
+            .Where(track => track.Kind == "video" && !track.IsCover)
+            .ToArray();
+        var audioTracks = selectedTracks
+            .Where(track => track.Kind == "audio" && !track.IsCover)
+            .ToArray();
+        var subtitles = selectedTracks
+            .Where(track => track.Kind == "subtitle")
+            .ToArray();
+        var covers = selectedTracks
+            .Where(track => track.IsCover)
+            .ToArray();
+
+        foreach (var track in videos)
+        {
+            arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
+        }
+
+        AddAudioInputArguments(arguments, audioTracks);
+
+        foreach (var track in subtitles)
+        {
+            arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
+        }
+
+        foreach (var track in covers)
+        {
+            arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
+        }
+
+        for (var videoIndex = 0; videoIndex < videos.Length; videoIndex++)
+        {
+            arguments.AddRange([
+                $"-c:v:{videoIndex}", "libx264",
+                $"-pix_fmt:v:{videoIndex}", "yuv420p",
+            ]);
+        }
+
+        if (videos.Length > 0)
+        {
+            arguments.AddRange(["-movflags", "+faststart"]);
+        }
+
+        for (var coverIndex = 0; coverIndex < covers.Length; coverIndex++)
+        {
+            var outputVideoIndex = videos.Length + coverIndex;
+            arguments.AddRange([
+                $"-c:v:{outputVideoIndex}", "copy",
+                $"-disposition:v:{outputVideoIndex}", "attached_pic",
+            ]);
+        }
+
+        if (audioTracks.Length > 0)
+        {
+            arguments.AddRange(["-c:a:0", "aac", "-b:a:0", "192k"]);
+        }
+
+        if (subtitles.Length > 0)
+        {
+            arguments.AddRange(["-c:s", "mov_text"]);
+        }
+    }
+
     private static void AddAudioMixArguments(
         List<string> arguments,
         IReadOnlyList<TrackInfo> selectedTracks,
         string outputContainer)
     {
-        if (selectedTracks.Count == 1)
+        AddAudioInputArguments(arguments, selectedTracks);
+        arguments.AddRange(GetAudioCodecArguments(outputContainer));
+    }
+
+    private static void AddAudioInputArguments(
+        List<string> arguments,
+        IReadOnlyList<TrackInfo> audioTracks)
+    {
+        if (audioTracks.Count == 1)
         {
-            var track = selectedTracks[0];
+            var track = audioTracks[0];
             arguments.AddRange(["-map", $"{track.SourceIndex}:{track.StreamIndex}"]);
         }
-        else
+        else if (audioTracks.Count > 1)
         {
             var inputs = string.Concat(
-                selectedTracks.Select(track => $"[{track.SourceIndex}:{track.StreamIndex}]"));
+                audioTracks.Select(track => $"[{track.SourceIndex}:{track.StreamIndex}]"));
             var filter =
-                $"{inputs}amix=inputs={selectedTracks.Count}:duration=longest:dropout_transition=0:normalize=1[audio_mix]";
+                $"{inputs}amix=inputs={audioTracks.Count}:duration=longest:dropout_transition=0:normalize=1[audio_mix]";
             arguments.AddRange(["-filter_complex", filter, "-map", "[audio_mix]"]);
         }
-
-        arguments.AddRange(GetAudioCodecArguments(outputContainer));
     }
 
     private static IReadOnlyList<string> GetAudioCodecArguments(string outputContainer) =>

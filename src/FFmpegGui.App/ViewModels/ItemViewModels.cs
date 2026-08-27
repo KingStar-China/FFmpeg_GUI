@@ -86,6 +86,18 @@ public sealed class TrackItemViewModel : ObservableObject
         }
     }
 
+    public void SetTargetSilently(OutputTarget? target)
+    {
+        if (Equals(_selectedTarget, target))
+        {
+            return;
+        }
+
+        _selectedTarget = target;
+        OnPropertyChanged(nameof(SelectedTarget));
+        OnPropertiesChanged(nameof(TargetCodec), nameof(Tooltip));
+    }
+
     public string TargetCodec => SelectedTarget?.Label ?? "-";
 
     public string Language => Track.Language ?? "-";
