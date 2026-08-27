@@ -88,7 +88,18 @@ Copy-Item -LiteralPath (Join-Path $FfmpegBin 'ffmpeg.exe') -Destination $toolsDi
 Copy-Item -LiteralPath (Join-Path $FfmpegBin 'ffprobe.exe') -Destination $toolsDir -Force
 Get-ChildItem -LiteralPath $FfmpegBin -Filter '*.dll' -File |
     Copy-Item -Destination $toolsDir -Force
-Copy-Item -LiteralPath $mkvextract -Destination $toolsDir -Force
+$publishedMkvextract = Join-Path $toolsDir 'mkvextract.exe'
+if (-not (Test-Path -LiteralPath $publishedMkvextract -PathType Leaf)) {
+    Copy-Item -LiteralPath $mkvextract -Destination $publishedMkvextract -Force
+}
+
+foreach ($installerFile in @('install_windows_native.ps1', 'install_windows_native.cmd')) {
+    $installerSource = Join-Path $repoRoot $installerFile
+    if (-not (Test-Path -LiteralPath $installerSource -PathType Leaf)) {
+        throw "缺少安装器文件：$installerSource"
+    }
+    Copy-Item -LiteralPath $installerSource -Destination $portableDir -Force
+}
 
 # 旧版本曾生成压缩包；本脚本现在只保留解压目录，避免本地保留两份发布产物。
 if (Test-Path -LiteralPath $portableZip) {

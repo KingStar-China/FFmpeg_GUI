@@ -24,6 +24,20 @@
 .\run_windows_native.ps1 "D:\Media\sample.mkv"
 ```
 
+## 安装原生版
+
+构建后的目录包含 `install_windows_native.cmd`。在目标电脑上双击它即可：
+
+- 自动检测 `.NET 10 Desktop Runtime`；
+- 优先通过 WinGet 安装 `Microsoft.DotNet.DesktopRuntime.10`，不可用时改用微软官方下载程序；
+- 将程序复制到 `%LOCALAPPDATA%\Programs\FFmpeg GUI`，创建开始菜单和桌面快捷方式并启动。
+
+运行时安装可能需要联网和 UAC 管理员确认。也可以直接运行脚本：
+
+```powershell
+.\install_windows_native.ps1 -DesktopShortcut -Launch
+```
+
 ## 测试与构建
 
 ```powershell
@@ -43,7 +57,7 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 .\build_windows_native.ps1 -FfmpegBin "C:\Tools\ffmpeg\bin"
 ```
 
-输出位于 `artifacts\FFmpeg GUI Native win-x64\`，脚本不再额外生成压缩包。
+输出位于 `artifacts\FFmpeg GUI Native win-x64\`，其中包含原生程序和安装器；脚本不再额外生成压缩包。
 
 ## 仓库结构
 
