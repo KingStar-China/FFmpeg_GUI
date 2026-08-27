@@ -46,7 +46,7 @@ public sealed class ToolLocator
             _ => "缺少 FFmpeg / FFprobe",
         };
         var mkvExtract = FindMkvExtract() is not null ? "MKVToolNix 已就绪" : "未找到 mkvextract";
-        return $"{ffmpeg} · {mkvExtract}";
+        return $".NET 已就绪 · {ffmpeg} · {mkvExtract}";
     }
 
     private string? FindExecutable(string executableName)
