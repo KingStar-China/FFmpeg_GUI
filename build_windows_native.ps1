@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Join-Path $repoRoot 'src\FFmpegGui.App\FFmpegGui.App.csproj'
+$launcherProject = Join-Path $repoRoot 'src\FFmpegGui.Launcher\FFmpegGui.Launcher.csproj'
 $artifactRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $portableDir = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg GUI Native $Runtime"))
 $portableZip = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg_GUI_v0.2.0_${Runtime}_native_portable.zip"))
@@ -82,6 +83,19 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish 失败，退出码：$LASTEXITCODE"
 }
 
+& dotnet publish $launcherProject `
+    --configuration $Configuration `
+    --runtime $Runtime `
+    --self-contained true `
+    --output $portableDir `
+    -p:PublishSingleFile=true `
+    -p:PublishAot=true `
+    -p:DebugSymbols=false `
+    -p:DebugType=None
+if ($LASTEXITCODE -ne 0) {
+    throw "启动器发布失败，退出码：$LASTEXITCODE"
+}
+
 $toolsDir = Join-Path $portableDir 'tools'
 New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
 Copy-Item -LiteralPath (Join-Path $FfmpegBin 'ffmpeg.exe') -Destination $toolsDir -Force
@@ -110,4 +124,4 @@ $sizeMb = [Math]::Round(
     ((Get-ChildItem -LiteralPath $portableDir -Recurse -File | Measure-Object Length -Sum).Sum) / 1MB,
     1)
 Write-Host "原生目录版已生成：$portableDir ($sizeMb MB)"
-Write-Host "注意：此版本不内置 .NET Runtime，需要安装 .NET 10 Desktop Runtime。"
+Write-Host "入口启动器不依赖 .NET Runtime；首次启动会检测并引导安装 .NET 10 Desktop Runtime。"

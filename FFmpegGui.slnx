@@ -3,6 +3,7 @@
     <Project Path="src/FFmpegGui.Core/FFmpegGui.Core.csproj" />
     <Project Path="src/FFmpegGui.Infrastructure/FFmpegGui.Infrastructure.csproj" />
     <Project Path="src/FFmpegGui.App/FFmpegGui.App.csproj" />
+    <Project Path="src/FFmpegGui.Launcher/FFmpegGui.Launcher.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FFmpegGui.Core.Tests/FFmpegGui.Core.Tests.csproj" />
