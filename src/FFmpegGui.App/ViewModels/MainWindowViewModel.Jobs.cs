@@ -8,8 +8,6 @@ public sealed partial class MainWindowViewModel
 {
     private sealed record BatchJobSpec(
         MediaInfo Media,
-        IReadOnlyList<TrackInfo> Tracks,
-        string Container,
         string OutputPath);
 
     public async Task<string?> RunCurrentJobAsync()
@@ -156,10 +154,9 @@ public sealed partial class MainWindowViewModel
             var specs = BuildBatchJobSpecs();
             var jobs = specs
                 .Select(spec => new MediaJob(
-                    _invocationFactory.CreateMux(
-                        [spec.Media],
-                        spec.Tracks,
-                        spec.Container,
+                    _invocationFactory.CreateBatch(
+                        spec.Media,
+                        _batchMediaKind!.Value,
                         spec.OutputPath),
                     spec.OutputPath,
                     false,
@@ -212,7 +209,6 @@ public sealed partial class MainWindowViewModel
         }
 
         var kind = _batchMediaKind.Value;
-        var container = BatchPlanner.OutputContainer(kind);
         var reservedPaths = MediaItems
             .Select(item => Path.GetFullPath(item.InputPath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -230,7 +226,7 @@ public sealed partial class MainWindowViewModel
                 kind,
                 OutputPath,
                 reservedPaths);
-            jobs.Add(new BatchJobSpec(item.Media, tracks, container, outputPath));
+            jobs.Add(new BatchJobSpec(item.Media, outputPath));
         }
 
         return jobs;

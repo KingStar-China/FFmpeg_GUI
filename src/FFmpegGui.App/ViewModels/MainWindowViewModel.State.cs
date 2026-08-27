@@ -578,7 +578,10 @@ public sealed partial class MainWindowViewModel
                 var kindLabel = _batchMediaKind == BatchMediaKind.Video ? "视频" : "音频";
                 var outputLabel = BatchPlanner.OutputLabel(_batchMediaKind.Value);
                 SummaryText = $"共导入 {MediaItems.Count} 个文件，当前选择 {selectedFiles.Count} 个{kindLabel}文件。\n"
-                    + $"批量输出：每个文件单独生成 1 个 {outputLabel} 文件。";
+                    + $"批量输出：每个文件单独生成 1 个 {outputLabel} 文件。\n"
+                    + (_batchMediaKind == BatchMediaKind.Video
+                        ? "已符合 H.264/AAC/MOV_TEXT 的流会直接复制；否则只转换不符合的流，并保留 1 条默认文本软字幕。"
+                        : "AAC 音频会直接复制；其他音频只转换为 AAC。");
             }
 
             var batchIssues = CollectIssues();
@@ -757,10 +760,9 @@ public sealed partial class MainWindowViewModel
                 var first = jobs[0];
                 var invocation = new ProcessInvocation(
                     _toolLocator.FindFfmpeg() ?? "ffmpeg",
-                    MuxPlanner.BuildArguments(
-                        [first.Media],
-                        first.Tracks,
-                        first.Container,
+                    BatchPlanner.BuildArguments(
+                        first.Media,
+                        _batchMediaKind!.Value,
                         first.OutputPath));
                 var prefix = jobs.Count > 1 ? $"共 {jobs.Count} 个独立任务，以下为第 1 条：\n" : string.Empty;
                 CommandPreview = prefix + CommandLineFormatter.Format(invocation.Program, invocation.Arguments);

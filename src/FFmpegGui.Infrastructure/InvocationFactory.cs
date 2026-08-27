@@ -14,6 +14,14 @@ public sealed class InvocationFactory(ToolLocator toolLocator)
             toolLocator.RequireFfmpeg(),
             MuxPlanner.BuildArguments(media, selectedTracks, outputContainer, outputPath, targetByTrackKey));
 
+    public ProcessInvocation CreateBatch(
+        MediaInfo media,
+        BatchMediaKind kind,
+        string outputPath) =>
+        new(
+            toolLocator.RequireFfmpeg(),
+            BatchPlanner.BuildArguments(media, kind, outputPath));
+
     public ProcessInvocation CreateExtract(
         TrackInfo track,
         OutputTarget target,

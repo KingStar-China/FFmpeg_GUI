@@ -20,7 +20,7 @@ public sealed class BatchPlannerTests
     }
 
     [TestMethod]
-    public void SelectOutputTracks_VideoUsesDefaultVideoAndAudioAndNormalizesInputIndex()
+    public void SelectOutputTracks_VideoUsesDefaultVideoAudioAndTextSubtitle()
     {
         var media = new MediaInfo(
             @"C:\Media\movie.mkv",
@@ -33,19 +33,67 @@ public sealed class BatchPlannerTests
                 TestTracks.Create("audio", "mp3", 1, 4, isDefault: true, sourcePath: @"C:\Media\movie.mkv"),
                 TestTracks.Create("video", "h264", 2, 4, isDefault: true, sourcePath: @"C:\Media\movie.mkv"),
                 TestTracks.Create("audio", "aac", 3, 4, sourcePath: @"C:\Media\movie.mkv"),
+                TestTracks.Create("subtitle", "subrip", 4, 4, isDefault: true, sourcePath: @"C:\Media\movie.mkv"),
+                TestTracks.Create("subtitle", "ass", 5, 4, sourcePath: @"C:\Media\movie.mkv"),
             ]);
 
         var tracks = BatchPlanner.SelectOutputTracks(media, BatchMediaKind.Video);
-        var arguments = MuxPlanner.BuildArguments([media], tracks, "mp4", @"C:\Out\movie.mp4");
 
-        Assert.HasCount(2, tracks);
+        Assert.HasCount(3, tracks);
         Assert.AreEqual(2, tracks[0].StreamIndex);
         Assert.AreEqual(1, tracks[1].StreamIndex);
+        Assert.AreEqual(4, tracks[2].StreamIndex);
         Assert.IsTrue(tracks.All(track => track.SourceIndex == 0));
-        CollectionAssert.Contains(arguments.ToList(), "0:2");
-        CollectionAssert.Contains(arguments.ToList(), "0:1");
-        CollectionAssert.Contains(arguments.ToList(), "libx264");
-        CollectionAssert.Contains(arguments.ToList(), "aac");
+    }
+
+    [TestMethod]
+    public void BuildArguments_CopiesCompatibleMp4Streams()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "h264", 0),
+            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("subtitle", "mov_text", 2));
+
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Video,
+            @"C:\Out\movie.mp4");
+
+        AssertArgumentValue(arguments, "-c:v:0", "copy");
+        AssertArgumentValue(arguments, "-c:a:0", "copy");
+        AssertArgumentValue(arguments, "-c:s:0", "copy");
+        CollectionAssert.DoesNotContain(arguments.ToList(), "libx264");
+    }
+
+    [TestMethod]
+    public void BuildArguments_TranscodesOnlyIncompatibleMp4Streams()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "hevc", 0),
+            TestTracks.Create("audio", "flac", 1),
+            TestTracks.Create("subtitle", "ass", 2));
+
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Video,
+            @"C:\Out\movie.mp4");
+
+        AssertArgumentValue(arguments, "-c:v:0", "libx264");
+        AssertArgumentValue(arguments, "-c:a:0", "aac");
+        AssertArgumentValue(arguments, "-c:s:0", "mov_text");
+    }
+
+    [TestMethod]
+    public void SelectOutputTracks_SkipsBitmapSubtitle()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "h264", 0),
+            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("subtitle", "hdmv_pgs_subtitle", 2, isDefault: true));
+
+        var tracks = BatchPlanner.SelectOutputTracks(media, BatchMediaKind.Video);
+
+        Assert.IsFalse(tracks.Any(track => track.Kind == "subtitle"));
     }
 
     [TestMethod]
@@ -60,7 +108,7 @@ public sealed class BatchPlannerTests
             [TestTracks.Create("audio", "flac", 0, 7, sourcePath: @"C:\Media\song.flac")]);
 
         var tracks = BatchPlanner.SelectOutputTracks(media, BatchMediaKind.Audio);
-        var arguments = MuxPlanner.BuildArguments([media], tracks, "m4a", @"C:\Out\song.m4a");
+        var arguments = BatchPlanner.BuildArguments(media, BatchMediaKind.Audio, @"C:\Out\song.m4a");
 
         Assert.HasCount(1, tracks);
         Assert.AreEqual(0, tracks[0].SourceIndex);
@@ -89,5 +137,15 @@ public sealed class BatchPlannerTests
 
         Assert.AreEqual(@"C:\Out\clip.batch.mp4", first);
         Assert.AreEqual(@"C:\Out\clip.batch2.mp4", second);
+    }
+
+    private static void AssertArgumentValue(
+        IReadOnlyList<string> arguments,
+        string argument,
+        string expectedValue)
+    {
+        var index = Array.IndexOf(arguments.ToArray(), argument);
+        Assert.IsTrue(index >= 0, $"缺少参数 {argument}");
+        Assert.AreEqual(expectedValue, arguments[index + 1]);
     }
 }
