@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $appExeName = 'FFmpeg GUI.exe'
-$managedAppExeName = 'FFmpeg GUI.App.exe'
+$managedAssemblyName = 'FFmpeg GUI.App.dll'
 $managedRuntimeConfigName = 'FFmpeg GUI.App.runtimeconfig.json'
 $runtimePackageId = 'Microsoft.DotNet.DesktopRuntime.10'
 $runtimeInstallerUri = 'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe'
@@ -149,7 +149,7 @@ if (-not $sameLocation -and $install.StartsWith($sourcePrefix, [StringComparison
 
 foreach ($relativePath in @(
     $appExeName,
-    $managedAppExeName,
+    $managedAssemblyName,
     $managedRuntimeConfigName,
     'tools\ffmpeg.exe',
     'tools\ffprobe.exe',

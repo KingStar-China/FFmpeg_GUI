@@ -76,6 +76,7 @@ if (Test-Path -LiteralPath $portableZip) {
     --self-contained false `
     --output $portableDir `
     -p:PublishSingleFile=false `
+    -p:UseAppHost=false `
     -p:PublishReadyToRun=false `
     -p:DebugSymbols=false `
     -p:DebugType=None

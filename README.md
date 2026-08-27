@@ -12,7 +12,7 @@
 
 ## 运行原生版
 
-开发运行需要 Windows 和 .NET 10 SDK；发布目录由原生入口启动器负责检测并引导安装 .NET 10 Desktop Runtime：
+开发运行需要 Windows 和 .NET 10 SDK；发布目录只有一个原生入口 EXE，由它负责检测并引导安装 .NET 10 Desktop Runtime：
 
 ```powershell
 .\run_windows_native.ps1
@@ -32,7 +32,7 @@
 - 安装完成后会自动启动真正的 WPF 界面；
 - 如果只想手动安装，也可以运行 `install_windows_native.cmd`。
 
-启动器本身不依赖 .NET 10，因此不会出现“主程序尚未启动、无法检测运行时”的问题。
+入口 EXE 本身不依赖 .NET 10；WPF 主程序以 DLL 随包提供，因此不会出现“主程序尚未启动、无法检测运行时”的问题。
 
 如果使用 `install_windows_native.cmd`，它会：
 
@@ -65,7 +65,7 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 .\build_windows_native.ps1 -FfmpegBin "C:\Tools\ffmpeg\bin"
 ```
 
-输出位于 `artifacts\FFmpeg GUI Native win-x64\`，其中包含原生程序和安装器；脚本不再额外生成压缩包。
+输出位于 `artifacts\FFmpeg GUI Native win-x64\`，其中只有一个入口 EXE，另含 WPF 主程序 DLL、运行时配置、工具和安装器；脚本不再额外生成压缩包。
 
 ## 仓库结构
 
@@ -80,5 +80,5 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 
 - 当前版本：`artifacts\FFmpeg GUI Native win-x64\`
 - Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.0>
-- 原生目录版包含启动器、WPF 主程序、FFmpeg、FFprobe 和 mkvextract；首次启动会自动检测并引导安装 .NET 10 Desktop Runtime。
+- 原生目录版只包含一个入口 EXE；WPF 主程序以 DLL 形式提供，并随附 FFmpeg、FFprobe、mkvextract；首次启动会自动检测并引导安装 .NET 10 Desktop Runtime。
 - 旧版 `v0.1.1`：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.1>

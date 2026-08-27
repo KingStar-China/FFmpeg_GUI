@@ -5,7 +5,7 @@ namespace FFmpegGui.Launcher;
 
 internal static class Program
 {
-    private const string ManagedApplicationName = "FFmpeg GUI.App.exe";
+    private const string ManagedAssemblyName = "FFmpeg GUI.App.dll";
     private const string InstallerScriptName = "install_windows_native.ps1";
     private const uint MessageBoxYesNo = 0x00000004;
     private const uint MessageBoxIconWarning = 0x00000030;
@@ -18,18 +18,18 @@ internal static class Program
     private static int Main(string[] args)
     {
         var baseDirectory = AppContext.BaseDirectory;
-        var managedApplicationPath = Path.Combine(baseDirectory, ManagedApplicationName);
-        if (!File.Exists(managedApplicationPath))
+        var managedAssemblyPath = Path.Combine(baseDirectory, ManagedAssemblyName);
+        if (!File.Exists(managedAssemblyPath))
         {
             ShowError(
-                "找不到 FFmpeg GUI 主程序文件。请确认已完整解压发布包，不要只复制启动器。",
+                "找不到 FFmpeg GUI 主程序文件。请确认已完整解压发布包，不要只复制入口 EXE。",
                 "FFmpeg GUI");
             return 1;
         }
 
         if (HasDesktopRuntime())
         {
-            return Launch(managedApplicationPath, baseDirectory, args);
+            return LaunchManaged(managedAssemblyPath, baseDirectory, args);
         }
 
         var answer = MessageBox(
@@ -72,18 +72,63 @@ internal static class Program
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Programs",
             "FFmpeg GUI");
-        var installedApplicationPath = Path.Combine(installedDirectory, ManagedApplicationName);
-        return File.Exists(installedApplicationPath)
-            ? Launch(installedApplicationPath, installedDirectory, args)
-            : Launch(managedApplicationPath, baseDirectory, args);
+        var installedAssemblyPath = Path.Combine(installedDirectory, ManagedAssemblyName);
+        return File.Exists(installedAssemblyPath)
+            ? LaunchManaged(installedAssemblyPath, installedDirectory, args)
+            : LaunchManaged(managedAssemblyPath, baseDirectory, args);
     }
 
     private static bool HasDesktopRuntime()
     {
+        var dotnetPath = FindDotnetHostPath();
+        if (dotnetPath is not null)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = dotnetPath,
+                    WorkingDirectory = AppContext.BaseDirectory,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                startInfo.ArgumentList.Add("--list-runtimes");
+
+                using var process = Process.Start(startInfo);
+                if (process is not null)
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+                    if (process.ExitCode == 0 && output.Contains(
+                            "Microsoft.WindowsDesktop.App 10.",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // Fall back to the standard runtime directories below.
+            }
+        }
+
         var roots = new List<string>();
         AddRuntimeRoot(roots, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddRuntimeRoot(roots, Environment.GetEnvironmentVariable("ProgramW6432"));
         AddRuntimeRoot(roots, Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-        AddRuntimeRoot(roots, Environment.GetEnvironmentVariable("ProgramFiles(x86)"));
+        AddRuntimeRoot(
+            roots,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft"));
+        AddRuntimeRoot(
+            roots,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".dotnet"));
 
         foreach (var root in roots.Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -105,6 +150,51 @@ internal static class Program
         }
 
         return false;
+    }
+
+    private static string? FindDotnetHostPath()
+    {
+        var candidates = new List<string>();
+        AddDotnetHostCandidate(candidates, Environment.GetEnvironmentVariable("DOTNET_ROOT"));
+        AddDotnetHostCandidate(candidates, Environment.GetEnvironmentVariable("ProgramW6432"));
+        AddDotnetHostCandidate(candidates, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddDotnetHostCandidate(
+            candidates,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft",
+                "dotnet"));
+        AddDotnetHostCandidate(
+            candidates,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "dotnet"));
+        AddDotnetHostCandidate(
+            candidates,
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".dotnet"));
+
+        var path = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            foreach (var pathEntry in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                AddDotnetHostCandidate(candidates, pathEntry);
+            }
+        }
+
+        return candidates
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(File.Exists);
+    }
+
+    private static void AddDotnetHostCandidate(ICollection<string> candidates, string? root)
+    {
+        if (!string.IsNullOrWhiteSpace(root))
+        {
+            candidates.Add(Path.Combine(root, "dotnet.exe"));
+        }
     }
 
     private static void AddRuntimeRoot(ICollection<string> roots, string? parent)
@@ -158,20 +248,39 @@ internal static class Program
         return process.ExitCode;
     }
 
-    private static int Launch(string applicationPath, string workingDirectory, IReadOnlyList<string> args)
+    private static int LaunchManaged(string assemblyPath, string workingDirectory, IReadOnlyList<string> args)
     {
+        var dotnetPath = FindDotnetHostPath();
+        if (dotnetPath is null)
+        {
+            ShowError(
+                "找不到 dotnet.exe，无法启动 FFmpeg GUI。请重新安装 .NET 10 Desktop Runtime。",
+                "FFmpeg GUI");
+            return 1;
+        }
+
         var startInfo = new ProcessStartInfo
         {
-            FileName = applicationPath,
+            FileName = dotnetPath,
             WorkingDirectory = workingDirectory,
-            UseShellExecute = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
+        startInfo.ArgumentList.Add(assemblyPath);
         foreach (var argument in args)
         {
             startInfo.ArgumentList.Add(argument);
         }
 
-        return Process.Start(startInfo) is null ? 1 : 0;
+        try
+        {
+            return Process.Start(startInfo) is null ? 1 : 0;
+        }
+        catch (Exception exception)
+        {
+            ShowError($"启动 FFmpeg GUI 失败：{exception.Message}", "FFmpeg GUI");
+            return 1;
+        }
     }
 
     private static void ShowError(string text, string caption) =>
