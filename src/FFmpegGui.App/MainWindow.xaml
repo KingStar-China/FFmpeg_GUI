@@ -10,11 +10,62 @@
         MinWidth="1080"
         MinHeight="680"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WindowBackground}"
+        Foreground="{DynamicResource WindowForeground}"
         AllowDrop="True"
         PreviewDragOver="Window_PreviewDragOver"
         Drop="Window_Drop"
         Closing="Window_Closing">
     <Window.Resources>
+        <!--
+            控件模板仍使用 .NET Fluent，但颜色由窗口统一提供。
+            这样不会覆盖 Fluent 的隐式模板，也不会把系统强调色（例如粉色）带进深色界面。
+        -->
+        <SolidColorBrush x:Key="ButtonBackground" Color="#302A38" />
+        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#3C3348" />
+        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#493B58" />
+        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#25212C" />
+        <SolidColorBrush x:Key="ButtonForeground" Color="#F4F0F8" />
+        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#F4F0F8" />
+        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#8C8494" />
+
+        <SolidColorBrush x:Key="AccentButtonBackground" Color="#3B78B4" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#4A8CCB" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#2E5F91" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundDisabled" Color="#2B3948" />
+        <SolidColorBrush x:Key="AccentButtonForeground" Color="#F8FBFF" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E8F2FF" />
+        <SolidColorBrush x:Key="AccentButtonForegroundDisabled" Color="#9DAFBE" />
+
+        <SolidColorBrush x:Key="ComboBoxBackground" Color="#2B2533" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#352D3E" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#40354B" />
+        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#211D27" />
+        <SolidColorBrush x:Key="ComboBoxForeground" Color="#F4F0F8" />
+        <SolidColorBrush x:Key="ComboBoxForegroundPointerOver" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ComboBoxForegroundPressed" Color="#F4F0F8" />
+        <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ComboBoxForegroundFocusedPressed" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#8C8494" />
+
+        <SolidColorBrush x:Key="TextControlBackground" Color="#2B2533" />
+        <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#352D3E" />
+        <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#332A3E" />
+        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#211D27" />
+        <SolidColorBrush x:Key="TextControlForeground" Color="#F4F0F8" />
+        <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="TextControlForegroundFocused" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#8C8494" />
+
+        <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#4A3B62" />
+        <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#F8F4FF" />
+        <SolidColorBrush x:Key="ListBoxItemSelectedBackgroundThemeBrush" Color="#3A3150" />
+        <SolidColorBrush x:Key="ListBoxItemSelectedBackgroundPointerOverThemeBrush" Color="#493D62" />
+        <SolidColorBrush x:Key="ListBoxItemSelectedBackgroundPressedThemeBrush" Color="#574873" />
+        <SolidColorBrush x:Key="ListBoxItemSelectedForegroundThemeBrush" Color="#F8F4FF" />
+
         <Style x:Key="SecondaryText" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}" />
         </Style>
@@ -77,18 +128,22 @@
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Margin="0,0,8,0"
+                            Style="{DynamicResource DefaultButtonStyle}"
                             Content="导入主文件"
                             IsEnabled="{Binding CanModifyInputs}"
                             Click="ImportMain_Click" />
                     <Button Margin="0,0,8,0"
+                            Style="{DynamicResource DefaultButtonStyle}"
                             Content="添加媒体文件"
                             IsEnabled="{Binding CanModifyInputs}"
                             Click="AddMedia_Click" />
                     <Button Margin="0,0,8,0"
+                            Style="{DynamicResource DefaultButtonStyle}"
                             Content="清空文件"
                             IsEnabled="{Binding CanModifyInputs}"
                             Click="ClearMedia_Click" />
                     <Button Content="清空勾选"
+                            Style="{DynamicResource DefaultButtonStyle}"
                             IsEnabled="{Binding CanModifyInputs}"
                             Click="ClearSelection_Click" />
                 </StackPanel>
@@ -112,11 +167,13 @@
                                    Style="{StaticResource SectionTitle}"
                                    Text="工作模式" />
                         <RadioButton Margin="0,0,18,0"
+                                     Style="{DynamicResource DefaultRadioButtonStyle}"
                                      VerticalAlignment="Center"
                                      Content="单文件"
                                      GroupName="WorkMode"
                                      IsChecked="{Binding IsSingleFileMode, Mode=TwoWay}" />
                         <RadioButton VerticalAlignment="Center"
+                                     Style="{DynamicResource DefaultRadioButtonStyle}"
                                      Content="批量"
                                      ToolTip="批量模式暂未开放"
                                      GroupName="WorkMode"
@@ -179,8 +236,12 @@
                                     <MenuItem Header="按当前模式全选" Click="SelectAll_Click" />
                                 </ContextMenu>
                             </DataGrid.ContextMenu>
+                            <DataGrid.Resources>
+                                <SolidColorBrush x:Key="DataGridRowSelectedBackgroundThemeBrush" Color="#3A3150" />
+                                <SolidColorBrush x:Key="DataGridRowSelectedForegroundThemeBrush" Color="#F8F4FF" />
+                            </DataGrid.Resources>
                             <DataGrid.RowStyle>
-                                <Style TargetType="DataGridRow">
+                                <Style TargetType="DataGridRow" BasedOn="{StaticResource DefaultDataGridRowStyle}">
                                     <Setter Property="ToolTip" Value="{Binding Tooltip}" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsSupported}" Value="False">
@@ -195,6 +256,7 @@
                                         <DataTemplate>
                                             <CheckBox HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"
+                                                      Style="{DynamicResource DefaultCheckBoxStyle}"
                                                       IsEnabled="{Binding IsSelectable}"
                                                       IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </DataTemplate>
@@ -208,6 +270,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox MinWidth="150"
+                                                      Style="{DynamicResource DefaultComboBoxStyle}"
                                                       ItemsSource="{Binding TargetOptions}"
                                                       SelectedItem="{Binding SelectedTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       DisplayMemberPath="Label"
@@ -261,6 +324,7 @@
                                               Grid.Column="1"
                                               Grid.ColumnSpan="2"
                                               Margin="0,0,0,8"
+                                              Style="{DynamicResource DefaultComboBoxStyle}"
                                               ItemsSource="{Binding OutputOptions}"
                                               SelectedItem="{Binding SelectedOutputOption, Mode=TwoWay}"
                                               DisplayMemberPath="Label" />
@@ -271,11 +335,13 @@
                                      <TextBox Grid.Row="1"
                                               Grid.Column="1"
                                               Margin="0,0,8,0"
+                                              Style="{DynamicResource DefaultTextBoxStyle}"
                                               IsEnabled="{Binding HasMedia}"
                                               ToolTip="{Binding OutputPath}"
                                               Text="{Binding OutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <Button Grid.Row="1"
                                             Grid.Column="2"
+                                            Style="{DynamicResource DefaultButtonStyle}"
                                             Content="{Binding OutputBrowseLabel}"
                                             IsEnabled="{Binding CanModifyInputs}"
                                             Click="BrowseOutput_Click" />
@@ -305,11 +371,13 @@
                                                 Orientation="Horizontal">
                                         <Button Width="46"
                                                 Margin="0,0,8,0"
+                                                Style="{DynamicResource DefaultButtonStyle}"
                                                 Content="↑"
                                                 ToolTip="上移"
                                                 IsEnabled="{Binding CanMoveSelectedTrack}"
                                                 Click="MoveUp_Click" />
                                         <Button Width="46"
+                                                Style="{DynamicResource DefaultButtonStyle}"
                                                 Content="↓"
                                                 ToolTip="下移"
                                                 IsEnabled="{Binding CanMoveSelectedTrack}"
@@ -327,6 +395,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <Button Grid.Column="0"
+                                    Style="{DynamicResource AccentButtonStyle}"
                                     MinHeight="42"
                                     FontSize="15"
                                     FontWeight="SemiBold"
@@ -336,6 +405,7 @@
                                     Click="Run_Click" />
                             <Button Grid.Column="1"
                                     Margin="8,0,0,0"
+                                    Style="{DynamicResource DefaultButtonStyle}"
                                     Content="取消"
                                     IsEnabled="{Binding CanCancel}"
                                     Click="Cancel_Click" />
@@ -347,6 +417,7 @@
             <TabControl Grid.Row="2" Margin="0,12,0,0">
                 <TabItem Header="命令预览">
                     <TextBox Margin="8"
+                             Style="{DynamicResource DefaultTextBoxStyle}"
                              Padding="8"
                              AcceptsReturn="True"
                              AcceptsTab="True"
@@ -361,6 +432,7 @@
                 <TabItem Header="任务日志">
                     <TextBox x:Name="LogBox"
                              Margin="8"
+                             Style="{DynamicResource DefaultTextBoxStyle}"
                              Padding="8"
                              AcceptsReturn="True"
                              AcceptsTab="True"

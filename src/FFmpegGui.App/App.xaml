@@ -1,7 +1,7 @@
 <Application x:Class="FFmpegGui.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             ThemeMode="System">
+             ThemeMode="Dark">
     <!-- 不要在这里添加无 Key 的控件 Style；它会覆盖 ThemeMode 加载的 Fluent 明暗主题模板。 -->
     <Application.Resources />
 </Application>
