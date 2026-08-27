@@ -14,7 +14,7 @@ public sealed class BatchPlannerTests
             new[]
             {
                 "MP4（H.264 + AAC）",
-                "MKV（H.264 + AAC）",
+                "MKV（保留原编码）",
                 "WebM（VP9 + Opus）",
                 "MOV（H.264 + AAC）",
                 "AVI（MPEG-4 + MP3）",
@@ -117,11 +117,11 @@ public sealed class BatchPlannerTests
     }
 
     [TestMethod]
-    public void BuildArguments_MkvKeepsDefaultBitmapSubtitle()
+    public void BuildArguments_MkvKeepsOriginalCodecsAndDefaultBitmapSubtitle()
     {
         var media = TestTracks.Media(
-            TestTracks.Create("video", "h264", 0),
-            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("video", "hevc", 0),
+            TestTracks.Create("audio", "flac", 1),
             TestTracks.Create("subtitle", "hdmv_pgs_subtitle", 2, isDefault: true));
 
         var arguments = BatchPlanner.BuildArguments(

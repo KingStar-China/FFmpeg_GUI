@@ -5,7 +5,7 @@ public static class BatchPlanner
     private static readonly IReadOnlyList<BatchOutputPreset> VideoOutputPresets =
     [
         new("mp4", "MP4（H.264 + AAC）"),
-        new("mkv", "MKV（H.264 + AAC）"),
+        new("mkv", "MKV（保留原编码）"),
         new("webm", "WebM（VP9 + Opus）"),
         new("mov", "MOV（H.264 + AAC）"),
         new("avi", "AVI（MPEG-4 + MP3）"),
@@ -80,7 +80,7 @@ public static class BatchPlanner
         return container switch
         {
             "mp4" => "已符合 H.264/AAC/MOV_TEXT 的流会直接复制；否则只转换不符合的流，并保留 1 条默认文本软字幕。",
-            "mkv" => "已符合 H.264/AAC 的流会直接复制；否则只转换不符合的流，并保留 1 条默认软字幕。",
+            "mkv" => "视频和音频保留原编码；保留 1 条默认软字幕，只有容器不兼容的字幕才转换。",
             "webm" => "已符合 VP9/Opus/WebVTT 的流会直接复制；否则只转换不符合的流，并保留 1 条默认文本软字幕。",
             "mov" => "已符合 H.264/AAC/MOV_TEXT 的流会直接复制；否则只转换不符合的流，并保留 1 条默认文本软字幕。",
             "avi" => "已符合 MPEG-4/MP3 的流会直接复制；否则只转换不符合的流。AVI 不嵌入软字幕。",
@@ -225,6 +225,12 @@ public static class BatchPlanner
         TrackInfo video,
         string outputContainer)
     {
+        if (outputContainer == "mkv")
+        {
+            arguments.AddRange(["-c:v:0", "copy"]);
+            return;
+        }
+
         var targetCodec = outputContainer switch
         {
             "webm" => "vp9",
@@ -265,6 +271,12 @@ public static class BatchPlanner
         TrackInfo audio,
         string outputContainer)
     {
+        if (outputContainer == "mkv")
+        {
+            arguments.AddRange(["-c:a:0", "copy"]);
+            return;
+        }
+
         var targetCodec = outputContainer switch
         {
             "webm" => "opus",
