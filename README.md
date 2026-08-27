@@ -1,6 +1,6 @@
 # FFmpeg GUI
 
-当前稳定版是 Windows 原生 `v0.2.0`，技术栈为 `C# + .NET 10 + WPF Fluent`。发布物只包含原生版；`app/` 中的 `Python + PySide6` 仅作为历史源码保留，不参与 release。
+当前稳定版是 `v0.2.1`，技术栈为 `C# + .NET 10 + WPF Fluent`。发布物只包含原生版；`app/` 中的 `Python + PySide6` 仅作为历史源码保留，不参与 release。
 
 ## 当前能力
 
@@ -79,6 +79,6 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 ## 稳定版下载
 
 - 当前版本：`artifacts\FFmpeg GUI Native win-x64\`
-- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.0>
+- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.1>
 - 原生目录版只包含一个入口 EXE；WPF 主程序以 DLL 形式提供，并随附 FFmpeg、FFprobe、mkvextract；首次启动会自动检测并引导安装 .NET 10 Desktop Runtime。
 - 旧版 `v0.1.1`：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.1>

@@ -15,7 +15,7 @@ $project = Join-Path $repoRoot 'src\FFmpegGui.App\FFmpegGui.App.csproj'
 $launcherProject = Join-Path $repoRoot 'src\FFmpegGui.Launcher\FFmpegGui.Launcher.csproj'
 $artifactRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $portableDir = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg GUI Native $Runtime"))
-$portableZip = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg_GUI_v0.2.0_${Runtime}_native_portable.zip"))
+$portableZip = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg_GUI_v0.2.1_${Runtime}_native_portable.zip"))
 
 function Assert-ArtifactChildPath {
     param([Parameter(Mandatory)][string]$Path)
