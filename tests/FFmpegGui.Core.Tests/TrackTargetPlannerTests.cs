@@ -31,6 +31,19 @@ public sealed class TrackTargetPlannerTests
     }
 
     [TestMethod]
+    public void ListTargets_SubtitleIncludesMp4MovTextTarget()
+    {
+        var track = TestTracks.Create("subtitle", "subrip");
+
+        var target = TrackTargetPlanner.ListTargets(track)
+            .Single(item => item.Id == "sub-mp4-mov-text");
+
+        Assert.AreEqual("mp4", target.Extension);
+        Assert.AreEqual("transcode", target.Mode);
+        StringAssert.Contains(target.Label, "MOV_TEXT");
+    }
+
+    [TestMethod]
     public void Classify_UsesTargetCodecToChooseExtractOrConvert()
     {
         var track = TestTracks.Create("video", "h264");

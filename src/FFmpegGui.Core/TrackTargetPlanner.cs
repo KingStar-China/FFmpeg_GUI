@@ -70,6 +70,7 @@ public static class TrackTargetPlanner
         "audio-flac" => "FLAC",
         "audio-wav" => "PCM（WAV）",
         "audio-opus" => "Opus",
+        "sub-mp4-mov-text" => "MOV_TEXT（MP4）",
         "sub-srt" => "SRT",
         "sub-ass" => "ASS",
         "sub-vtt" => "WebVTT",

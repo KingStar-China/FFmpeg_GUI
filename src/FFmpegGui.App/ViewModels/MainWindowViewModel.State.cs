@@ -404,6 +404,7 @@ public sealed partial class MainWindowViewModel
         {
             "video" when !track.Track.IsCover => "video-mp4-h264",
             "audio" when !track.Track.IsCover => "audio-m4a",
+            "subtitle" when MuxPlanner.IsMp4TextSubtitle(track.Track.Codec) => "sub-mp4-mov-text",
             _ => null,
         };
         if (targetId is null)

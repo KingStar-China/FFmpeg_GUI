@@ -120,6 +120,9 @@ public static class ExtractPlanner
 
             return
             [
+                OutputTarget.Transcode(
+                    "sub-mp4-mov-text", "转换为 MOV_TEXT（MP4） (*.mp4)", "mp4",
+                    "-c:s", "mov_text"),
                 OutputTarget.Transcode("sub-srt", "转换为 SRT (*.srt)", "srt", "-c:s", "srt"),
                 OutputTarget.Transcode("sub-ass", "转换为 ASS (*.ass)", "ass", "-c:s", "ass"),
                 OutputTarget.Transcode("sub-vtt", "转换为 WebVTT (*.vtt)", "vtt", "-c:s", "webvtt"),
