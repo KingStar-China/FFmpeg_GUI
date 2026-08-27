@@ -242,16 +242,22 @@
                                 <SolidColorBrush x:Key="DataGridRowSelectedBackgroundThemeBrush" Color="#3A3150" />
                                 <SolidColorBrush x:Key="DataGridRowSelectedForegroundThemeBrush" Color="#F8F4FF" />
                                 <Style x:Key="CenteredDataGridTextStyle" TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
                                     <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="TextAlignment" Value="Center" />
                                 </Style>
                                 <Style x:Key="CenteredDataGridColumnHeaderStyle"
                                        TargetType="DataGridColumnHeader"
                                        BasedOn="{StaticResource DefaultDataGridColumnHeaderStyle}">
+                                    <Setter Property="HorizontalAlignment" Value="Stretch" />
                                     <Setter Property="HorizontalContentAlignment" Value="Center" />
+                                    <!-- Fluent 模板右侧预留排序指示器空间，增加左内边距抵消该偏移，让文字以整列为中心。 -->
+                                    <Setter Property="Padding" Value="18,0,4,0" />
                                 </Style>
                             </DataGrid.Resources>
                             <DataGrid.CellStyle>
                                 <Style TargetType="DataGridCell" BasedOn="{StaticResource DefaultDataGridCellStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center" />
                                     <Setter Property="VerticalContentAlignment" Value="Center" />
                                 </Style>
                             </DataGrid.CellStyle>
@@ -292,6 +298,8 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox MinWidth="0"
+                                                      HorizontalAlignment="Stretch"
+                                                      HorizontalContentAlignment="Center"
                                                       Style="{DynamicResource DefaultComboBoxStyle}"
                                                       ItemsSource="{Binding TargetOptions}"
                                                       SelectedItem="{Binding SelectedTarget, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
