@@ -18,7 +18,39 @@ public sealed partial class MainWindowViewModel
         RestoreCurrentModeSelection();
         ApplySelectionConstraints(null);
         SyncSelectedTrackOrder();
-        StatusText = mode == WorkMode.Batch ? "批量模式暂未开放" : "已切换为单文件模式";
+        StatusText = mode == WorkMode.Batch
+            ? "已切换为批量模式，请先在左侧选择一个视频或音频文件"
+            : "已切换为单文件模式";
+        RefreshState();
+    }
+
+    private void OnMediaSelectionChanged(MediaItemViewModel changedItem)
+    {
+        if (_suppressMediaChanges || IsRunning || CurrentMode != WorkMode.Batch)
+        {
+            return;
+        }
+
+        if (changedItem.IsSelected)
+        {
+            if (changedItem.BatchKind is null
+                || (_batchMediaKind is not null && changedItem.BatchKind != _batchMediaKind))
+            {
+                changedItem.SetSelectedSilently(false);
+                return;
+            }
+
+            _batchMediaKind ??= changedItem.BatchKind;
+        }
+
+        RefreshBatchMediaKind();
+        if (_batchMediaKind is null)
+        {
+            _outputPathDirty = false;
+            SetOutputPath(string.Empty);
+        }
+
+        UpdateBatchMediaSelectability();
         RefreshState();
     }
 
@@ -196,7 +228,7 @@ public sealed partial class MainWindowViewModel
 
             if (CurrentMode == WorkMode.Batch)
             {
-                track.SetSelectable(false, "批量模式暂未开放。");
+                track.SetSelectable(false, "批量模式按左侧文件选择，不在轨道表中分轨。");
                 continue;
             }
 
@@ -227,39 +259,32 @@ public sealed partial class MainWindowViewModel
 
     public void SelectAllLike(TrackItemViewModel triggerTrack)
     {
-        if (IsRunning || !triggerTrack.IsSupported)
+        if (IsRunning || CurrentMode != WorkMode.SingleFile || !triggerTrack.IsSupported)
         {
             return;
         }
 
         var selectableTracks = Tracks.Where(track => track.IsSupported).ToArray();
         var selectedKeys = new List<string>();
-        if (CurrentMode == WorkMode.SingleFile)
+        var normalVideos = selectableTracks
+            .Where(track => track.Track.Kind == "video" && !track.Track.IsCover)
+            .ToArray();
+        var nonVideos = selectableTracks
+            .Where(track => track.Track.Kind != "video" || track.Track.IsCover)
+            .ToArray();
+        if (triggerTrack.Track.Kind == "video" && !triggerTrack.Track.IsCover)
         {
-            var normalVideos = selectableTracks
-                .Where(track => track.Track.Kind == "video" && !track.Track.IsCover)
-                .ToArray();
-            var nonVideos = selectableTracks
-                .Where(track => track.Track.Kind != "video" || track.Track.IsCover)
-                .ToArray();
-            if (triggerTrack.Track.Kind == "video" && !triggerTrack.Track.IsCover)
-            {
-                selectedKeys.Add(triggerTrack.TrackKey);
-                selectedKeys.AddRange(nonVideos.Select(track => track.TrackKey));
-            }
-            else
-            {
-                if (normalVideos.Length > 0)
-                {
-                    selectedKeys.Add(normalVideos[0].TrackKey);
-                }
-
-                selectedKeys.AddRange(nonVideos.Select(track => track.TrackKey));
-            }
+            selectedKeys.Add(triggerTrack.TrackKey);
+            selectedKeys.AddRange(nonVideos.Select(track => track.TrackKey));
         }
         else
         {
-            selectedKeys.AddRange(selectableTracks.Select(track => track.TrackKey));
+            if (normalVideos.Length > 0)
+            {
+                selectedKeys.Add(normalVideos[0].TrackKey);
+            }
+
+            selectedKeys.AddRange(nonVideos.Select(track => track.TrackKey));
         }
 
         var selectedSet = selectedKeys.ToHashSet(StringComparer.Ordinal);
@@ -274,6 +299,56 @@ public sealed partial class MainWindowViewModel
         ApplySelectionConstraints(null);
         SyncSelectedTrackOrder();
         RefreshState();
+    }
+
+    public void SelectAllBatch()
+    {
+        if (!CanSelectAllBatch || _batchMediaKind is null)
+        {
+            return;
+        }
+
+        _suppressMediaChanges = true;
+        foreach (var item in MediaItems)
+        {
+            item.SetSelectedSilently(item.BatchKind == _batchMediaKind);
+        }
+        _suppressMediaChanges = false;
+        UpdateBatchMediaSelectability();
+        RefreshState();
+    }
+
+    private IReadOnlyList<MediaItemViewModel> SelectedBatchMediaItems() =>
+        MediaItems
+            .Where(item => item.IsSelected && item.BatchKind == _batchMediaKind)
+            .ToArray();
+
+    private void RefreshBatchMediaKind()
+    {
+        _batchMediaKind = MediaItems
+            .Where(item => item.IsSelected)
+            .Select(item => item.BatchKind)
+            .FirstOrDefault(kind => kind is not null);
+    }
+
+    private void UpdateBatchMediaSelectability()
+    {
+        foreach (var item in MediaItems)
+        {
+            if (item.BatchKind is null)
+            {
+                item.SetSelectable(false, "批量模式只支持包含视频或音频的文件。");
+                continue;
+            }
+
+            var isSameKind = _batchMediaKind is null || item.BatchKind == _batchMediaKind;
+            var reason = isSameKind
+                ? string.Empty
+                : _batchMediaKind == BatchMediaKind.Video
+                    ? "当前批次已经选择了视频，只能继续选择视频文件。"
+                    : "当前批次已经选择了音频，只能继续选择音频文件。";
+            item.SetSelectable(isSameKind, reason);
+        }
     }
 
     public void MoveSelectedTrack(int delta)
@@ -313,6 +388,8 @@ public sealed partial class MainWindowViewModel
 
     private void RefreshState()
     {
+        RefreshBatchMediaKind();
+        UpdateBatchMediaSelectability();
         UpdateTrackSelectability();
         RefreshOutputOptions();
         RefreshSelectedTrackItems();
@@ -366,6 +443,13 @@ public sealed partial class MainWindowViewModel
                 OutputOptions.Add(OutputOptionViewModel.ForTarget(outputTarget));
             }
         }
+        else if (_batchMediaKind is not null)
+        {
+            var container = BatchPlanner.OutputContainer(_batchMediaKind.Value);
+            OutputOptions.Add(OutputOptionViewModel.Mux(
+                container,
+                BatchPlanner.OutputLabel(_batchMediaKind.Value)));
+        }
 
         var selectedOption = operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix
             ? OutputOptions.FirstOrDefault(option => option.Container == _muxContainer)
@@ -378,7 +462,8 @@ public sealed partial class MainWindowViewModel
             _muxContainer = selectedOption.Container;
         }
 
-        if (string.Equals(selectedOption?.Container, "mp4", StringComparison.OrdinalIgnoreCase)
+        if (CurrentMode == WorkMode.SingleFile
+            && string.Equals(selectedOption?.Container, "mp4", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(previousOutputContainer, "mp4", StringComparison.OrdinalIgnoreCase))
         {
             ApplyMp4TargetDefaults();
@@ -458,10 +543,23 @@ public sealed partial class MainWindowViewModel
 
         if (CurrentMode == WorkMode.Batch)
         {
-            SummaryText = "批量模式暂未开放。";
-            ValidationText = "批量模式暂未开放。";
-            ValidationDetails = string.Empty;
-            CommandPreview = string.Empty;
+            var selectedFiles = SelectedBatchMediaItems();
+            if (_batchMediaKind is null || selectedFiles.Count == 0)
+            {
+                SummaryText = $"共导入 {MediaItems.Count} 个文件。\n请先在左侧选择 1 个视频或音频文件。";
+            }
+            else
+            {
+                var kindLabel = _batchMediaKind == BatchMediaKind.Video ? "视频" : "音频";
+                var outputLabel = BatchPlanner.OutputLabel(_batchMediaKind.Value);
+                SummaryText = $"共导入 {MediaItems.Count} 个文件，当前选择 {selectedFiles.Count} 个{kindLabel}文件。\n"
+                    + $"批量输出：每个文件单独生成 1 个 {outputLabel} 文件。";
+            }
+
+            var batchIssues = CollectIssues();
+            ValidationText = batchIssues.Count == 0 ? "当前没有阻断错误。" : batchIssues[0];
+            ValidationDetails = string.Join(Environment.NewLine, batchIssues);
+            RefreshCommandPreview();
             RaiseActionState();
             return;
         }
@@ -506,7 +604,40 @@ public sealed partial class MainWindowViewModel
         var selectedTracks = OrderedSelectedTracks();
         if (CurrentMode == WorkMode.Batch)
         {
-            return ["批量模式暂未开放。"];
+            var selectedFiles = SelectedBatchMediaItems();
+            if (_batchMediaKind is null || selectedFiles.Count == 0)
+            {
+                return ["批量模式下请先在左侧选择 1 个视频或音频文件。"];
+            }
+
+            var batchIssues = new List<string>();
+            foreach (var item in selectedFiles)
+            {
+                if (BatchPlanner.SelectOutputTracks(item.Media, _batchMediaKind.Value).Count == 0)
+                {
+                    batchIssues.Add($"{item.FileName} 没有可用于批量处理的主轨道。");
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(OutputPath))
+            {
+                try
+                {
+                    _ = Path.GetFullPath(OutputPath);
+                    if (File.Exists(OutputPath))
+                    {
+                        batchIssues.Add("批量输出路径必须是文件夹，不能是文件。");
+                    }
+                }
+                catch (Exception error) when (error is ArgumentException
+                                                or NotSupportedException
+                                                or PathTooLongException)
+                {
+                    batchIssues.Add("批量输出文件夹路径无效。");
+                }
+            }
+
+            return batchIssues;
         }
 
         if (selectedTracks.Count == 0)
@@ -556,6 +687,10 @@ public sealed partial class MainWindowViewModel
         {
             defaultPath = ExtractPlanner.BuildOutputPath(selectedTracks[0], target);
         }
+        else if (CurrentMode == WorkMode.Batch && HasBatchSelection)
+        {
+            defaultPath = Path.GetDirectoryName(SelectedBatchMediaItems()[0].InputPath);
+        }
 
         if (force || string.IsNullOrWhiteSpace(OutputPath))
         {
@@ -573,7 +708,44 @@ public sealed partial class MainWindowViewModel
 
         if (CurrentMode == WorkMode.Batch)
         {
-            CommandPreview = "批量模式暂未开放。";
+            if (!HasBatchSelection)
+            {
+                CommandPreview = "请先在左侧选择一个视频或音频文件。";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(OutputPath))
+            {
+                CommandPreview = "请先选择输出文件夹。";
+                return;
+            }
+
+            try
+            {
+                var jobs = BuildBatchJobSpecs();
+                if (jobs.Count == 0)
+                {
+                    CommandPreview = "当前选择没有可执行的批量任务。";
+                    return;
+                }
+
+                var first = jobs[0];
+                var invocation = new ProcessInvocation(
+                    _toolLocator.FindFfmpeg() ?? "ffmpeg",
+                    MuxPlanner.BuildArguments(
+                        [first.Media],
+                        first.Tracks,
+                        first.Container,
+                        first.OutputPath));
+                var prefix = jobs.Count > 1 ? $"共 {jobs.Count} 个独立任务，以下为第 1 条：\n" : string.Empty;
+                CommandPreview = prefix + CommandLineFormatter.Format(invocation.Program, invocation.Arguments);
+            }
+            catch (Exception error) when (error is ArgumentException
+                                          or NotSupportedException
+                                          or PathTooLongException)
+            {
+                CommandPreview = $"批量输出文件夹路径无效：{error.Message}";
+            }
             return;
         }
 

@@ -3,11 +3,30 @@ using FFmpegGui.Core;
 
 namespace FFmpegGui.App.ViewModels;
 
-public sealed class MediaItemViewModel(MediaInfo media, int sourceIndex)
+public sealed class MediaItemViewModel : ObservableObject
 {
-    public MediaInfo Media { get; } = media;
+    private readonly Action<MediaItemViewModel>? _selectionChanged;
+    private bool _isSelected;
+    private bool _isSelectable;
+    private string _selectableReason = string.Empty;
 
-    public int SourceIndex { get; } = sourceIndex;
+    public MediaItemViewModel(
+        MediaInfo media,
+        int sourceIndex,
+        Action<MediaItemViewModel>? selectionChanged = null)
+    {
+        Media = media;
+        SourceIndex = sourceIndex;
+        _selectionChanged = selectionChanged;
+        _isSelectable = BatchKind is not null;
+        _selectableReason = BatchKind is null
+            ? "批量模式只支持包含视频或音频的文件。"
+            : string.Empty;
+    }
+
+    public MediaInfo Media { get; }
+
+    public int SourceIndex { get; }
 
     public string SourceLabel => $"素材{SourceIndex + 1}";
 
@@ -16,6 +35,65 @@ public sealed class MediaItemViewModel(MediaInfo media, int sourceIndex)
     public string FormatName => Media.FormatName;
 
     public string InputPath => Media.InputPath;
+
+    public BatchMediaKind? BatchKind => BatchPlanner.GetMediaKind(Media);
+
+    public string BatchKindLabel => BatchKind switch
+    {
+        BatchMediaKind.Video => "视频",
+        BatchMediaKind.Audio => "音频",
+        _ => "不支持批量处理",
+    };
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (value && !IsSelectable)
+            {
+                return;
+            }
+
+            if (SetProperty(ref _isSelected, value))
+            {
+                _selectionChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public bool IsSelectable
+    {
+        get => _isSelectable;
+        private set => SetProperty(ref _isSelectable, value);
+    }
+
+    public string SelectableReason
+    {
+        get => _selectableReason;
+        private set => SetProperty(ref _selectableReason, value);
+    }
+
+    public void SetSelectedSilently(bool selected)
+    {
+        if (_isSelected == selected)
+        {
+            return;
+        }
+
+        _isSelected = selected;
+        OnPropertyChanged(nameof(IsSelected));
+    }
+
+    public void SetSelectable(bool selectable, string reason = "")
+    {
+        IsSelectable = selectable;
+        SelectableReason = reason;
+        if (!selectable && IsSelected)
+        {
+            SetSelectedSilently(false);
+        }
+    }
 
     public string Details
     {

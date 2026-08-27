@@ -134,7 +134,9 @@ public partial class MainWindow : Window
 
     private async void ImportMain_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = CreateMediaDialog(multiselect: false, "选择主媒体文件");
+        var dialog = CreateMediaDialog(
+            multiselect: _viewModel.IsBatchMode,
+            _viewModel.IsBatchMode ? "选择要批量处理的媒体文件" : "选择主媒体文件");
         if (dialog.ShowDialog(this) == true)
         {
             await LoadFilesAsync(dialog.FileNames, replace: true);
@@ -258,6 +260,9 @@ public partial class MainWindow : Window
         _viewModel.Tracks.CollectionChanged -= Tracks_CollectionChanged;
         _viewModel.Dispose();
     }
+
+    private void SelectAllBatch_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.SelectAllBatch();
 
     private async Task LoadFilesAsync(IReadOnlyList<string> paths, bool replace)
     {

@@ -17,6 +17,7 @@
         Drop="Window_Drop"
         Closing="Window_Closing">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <!--
             控件模板仍使用 .NET Fluent，但颜色由窗口统一提供。
             这样不会覆盖 Fluent 的隐式模板，也不会把系统强调色（例如粉色）带进深色界面。
@@ -129,7 +130,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Margin="0,0,8,0"
                             Style="{DynamicResource DefaultButtonStyle}"
-                            Content="导入主文件"
+                            Content="{Binding ImportButtonText}"
                             IsEnabled="{Binding CanModifyInputs}"
                             Click="ImportMain_Click" />
                     <Button Margin="0,0,8,0"
@@ -175,9 +176,7 @@
                         <RadioButton VerticalAlignment="Center"
                                      Style="{DynamicResource DefaultRadioButtonStyle}"
                                      Content="批量"
-                                     ToolTip="批量模式暂未开放"
                                      GroupName="WorkMode"
-                                     IsEnabled="False"
                                      IsChecked="{Binding IsBatchMode, Mode=TwoWay}" />
                     </StackPanel>
                 </Border>
@@ -191,32 +190,72 @@
                         <ColumnDefinition Width="350" MinWidth="320" MaxWidth="420" />
                     </Grid.ColumnDefinitions>
 
-                    <GroupBox Grid.Column="0" Header="输入文件">
-                        <ListBox ItemsSource="{Binding MediaItems}"
-                                 BorderThickness="0"
-                                 HorizontalContentAlignment="Stretch">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="3,5" ToolTip="{Binding InputPath}">
-                                        <TextBlock FontWeight="SemiBold"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Text="{Binding FileName}" />
-                                        <TextBlock Margin="0,2,0,0"
-                                                   Style="{StaticResource SecondaryText}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Text="{Binding Details}" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </GroupBox>
+                    <Grid Grid.Column="0">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Grid.ColumnSpan" Value="1" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsBatchMode}" Value="True">
+                                        <Setter Property="Grid.ColumnSpan" Value="3" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <GroupBox Header="输入文件">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Top"
+                                        Margin="4,4,4,8"
+                                        HorizontalAlignment="Left"
+                                        Style="{DynamicResource DefaultButtonStyle}"
+                                        Content="{Binding SelectAllBatchLabel}"
+                                        IsEnabled="{Binding CanSelectAllBatch}"
+                                        Visibility="{Binding CanSelectAllBatch, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        Click="SelectAllBatch_Click" />
+                                <ListBox ItemsSource="{Binding MediaItems}"
+                                         BorderThickness="0"
+                                         HorizontalContentAlignment="Stretch">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="3,5" ToolTip="{Binding InputPath}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox Grid.Column="0"
+                                                          Margin="0,0,10,0"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Style="{DynamicResource DefaultCheckBoxStyle}"
+                                                          IsEnabled="{Binding IsSelectable}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                          ToolTip="{Binding SelectableReason}"
+                                                          Visibility="{Binding DataContext.IsBatchMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding FileName}" />
+                                                    <TextBlock Margin="0,2,0,0"
+                                                               Style="{StaticResource SecondaryText}"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding Details}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </GroupBox>
+                    </Grid>
 
                     <GridSplitter Grid.Column="1"
                                   Width="6"
                                   HorizontalAlignment="Stretch"
-                                  ResizeDirection="Columns" />
+                                  ResizeDirection="Columns"
+                                  Visibility="{Binding IsSingleFileMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
-                    <GroupBox Grid.Column="2" Header="轨道表">
+                    <GroupBox Grid.Column="2"
+                              Header="轨道表"
+                              Visibility="{Binding IsSingleFileMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <DataGrid x:Name="TracksGrid"
                                   ItemsSource="{Binding Tracks}"
                                   IsEnabled="{Binding CanModifyInputs}"
@@ -369,14 +408,14 @@
                                               Grid.Column="1"
                                               Margin="0,0,8,0"
                                               Style="{DynamicResource DefaultTextBoxStyle}"
-                                              IsEnabled="{Binding HasMedia}"
+                                              IsEnabled="{Binding CanChooseOutput}"
                                               ToolTip="{Binding OutputPath}"
                                               Text="{Binding OutputPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <Button Grid.Row="1"
                                             Grid.Column="2"
                                             Style="{DynamicResource DefaultButtonStyle}"
                                             Content="{Binding OutputBrowseLabel}"
-                                            IsEnabled="{Binding CanModifyInputs}"
+                                            IsEnabled="{Binding CanChooseOutput}"
                                             Click="BrowseOutput_Click" />
                                 </Grid>
                             </GroupBox>
@@ -387,7 +426,9 @@
                                            Text="{Binding ValidationText}" />
                             </GroupBox>
 
-                            <GroupBox Margin="0,0,0,10" Header="已选轨道顺序">
+                            <GroupBox Margin="0,0,0,10"
+                                      Header="已选轨道顺序"
+                                      Visibility="{Binding IsSingleFileMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="120" />

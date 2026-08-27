@@ -6,6 +6,12 @@ namespace FFmpegGui.App.ViewModels;
 
 public sealed partial class MainWindowViewModel
 {
+    private sealed record BatchJobSpec(
+        MediaInfo Media,
+        IReadOnlyList<TrackInfo> Tracks,
+        string Container,
+        string OutputPath);
+
     public async Task<string?> RunCurrentJobAsync()
     {
         if (!CanRun)
@@ -146,7 +152,23 @@ public sealed partial class MainWindowViewModel
         var selectedTracks = OrderedSelectedTracks();
         if (CurrentMode == WorkMode.Batch)
         {
-            return ("批量", []);
+            Directory.CreateDirectory(OutputPath);
+            var specs = BuildBatchJobSpecs();
+            var jobs = specs
+                .Select(spec => new MediaJob(
+                    _invocationFactory.CreateMux(
+                        [spec.Media],
+                        spec.Tracks,
+                        spec.Container,
+                        spec.OutputPath),
+                    spec.OutputPath,
+                    false,
+                    DurationMilliseconds(spec.Media.DurationSeconds)))
+                .ToArray();
+            var taskLabel = _batchMediaKind == BatchMediaKind.Video
+                ? "视频转换"
+                : "音频转换";
+            return (taskLabel, jobs);
         }
 
         if (selectedTracks.Count == 0)
@@ -180,6 +202,38 @@ public sealed partial class MainWindowViewModel
         return (
             TrackTargetPlanner.OperationLabel(operation),
             [BuildExtractJob(selectedTracks[0], selectedTarget, OutputPath)]);
+    }
+
+    private IReadOnlyList<BatchJobSpec> BuildBatchJobSpecs()
+    {
+        if (_batchMediaKind is null || string.IsNullOrWhiteSpace(OutputPath))
+        {
+            return [];
+        }
+
+        var kind = _batchMediaKind.Value;
+        var container = BatchPlanner.OutputContainer(kind);
+        var reservedPaths = MediaItems
+            .Select(item => Path.GetFullPath(item.InputPath))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var jobs = new List<BatchJobSpec>();
+        foreach (var item in SelectedBatchMediaItems())
+        {
+            var tracks = BatchPlanner.SelectOutputTracks(item.Media, kind);
+            if (tracks.Count == 0)
+            {
+                continue;
+            }
+
+            var outputPath = BatchPlanner.BuildOutputPath(
+                item.Media,
+                kind,
+                OutputPath,
+                reservedPaths);
+            jobs.Add(new BatchJobSpec(item.Media, tracks, container, outputPath));
+        }
+
+        return jobs;
     }
 
     private MediaJob BuildExtractJob(TrackInfo track, OutputTarget target, string outputPath)

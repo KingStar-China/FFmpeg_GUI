@@ -10,6 +10,7 @@ internal static class TestTracks
         int streamIndex = 0,
         int sourceIndex = 0,
         bool isCover = false,
+        bool isDefault = false,
         string sourcePath = @"C:\Media\source.mkv") =>
         new(
             $"{sourceIndex}:{streamIndex}",
@@ -24,7 +25,7 @@ internal static class TestTracks
             null,
             true,
             null,
-            new TrackDisposition(IsAttachedPicture: isCover));
+            new TrackDisposition(IsDefault: isDefault, IsAttachedPicture: isCover));
 
     public static MediaInfo Media(params TrackInfo[] tracks) =>
         new(@"C:\Media\source.mkv", "source.mkv", "matroska", 10, 1_000, tracks);

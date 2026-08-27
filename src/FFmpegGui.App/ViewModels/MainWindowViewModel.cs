@@ -44,6 +44,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _settingOutputPath;
     private bool _refreshing;
     private bool _suppressTrackChanges;
+    private bool _suppressMediaChanges;
+    private BatchMediaKind? _batchMediaKind;
     private CancellationTokenSource? _taskCancellation;
 
     public MainWindowViewModel(Dispatcher dispatcher)
@@ -104,7 +106,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             if (value.Container is not null)
             {
                 _muxContainer = value.Container;
-                if (string.Equals(_muxContainer, "mp4", StringComparison.OrdinalIgnoreCase))
+                if (CurrentMode == WorkMode.SingleFile
+                    && string.Equals(_muxContainer, "mp4", StringComparison.OrdinalIgnoreCase))
                 {
                     ApplyMp4TargetDefaults();
                 }
@@ -215,6 +218,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool IsBatchOutput => CurrentMode == WorkMode.Batch;
 
+    public bool HasBatchSelection =>
+        CurrentMode == WorkMode.Batch && SelectedBatchMediaItems().Count > 0;
+
+    public bool CanSelectAllBatch => HasBatchSelection && !IsRunning;
+
+    public bool CanChooseOutput => HasMedia && (!IsBatchOutput || HasBatchSelection);
+
     public bool CanRun => HasMedia
         && !IsRunning
         && CollectIssues().Count == 0
@@ -230,6 +240,15 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     public string RunButtonText => CurrentMode == WorkMode.Batch ? "开始批量" : "开始处理";
 
     public string OutputBrowseLabel => IsBatchOutput ? "选择文件夹" : "修改";
+
+    public string ImportButtonText => IsBatchOutput ? "导入文件" : "导入主文件";
+
+    public string SelectAllBatchLabel => _batchMediaKind switch
+    {
+        BatchMediaKind.Video => "全选全部视频",
+        BatchMediaKind.Audio => "全选全部音频",
+        _ => "全选同类文件",
+    };
 
     private WorkMode CurrentMode => _currentMode;
 
@@ -261,7 +280,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 StatusText = $"正在分析 {Path.GetFileName(path)}...";
                 var media = await _mediaInspector.InspectAsync(path, MediaItems.Count, cancellationToken);
-                MediaItems.Add(new MediaItemViewModel(media, MediaItems.Count));
+                MediaItems.Add(new MediaItemViewModel(media, MediaItems.Count, OnMediaSelectionChanged));
                 foreach (var track in media.Tracks)
                 {
                     Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));
@@ -318,6 +337,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         _modeSelectedKeys[CurrentMode].Clear();
         _modeSelectedOrders[CurrentMode].Clear();
+        if (CurrentMode == WorkMode.Batch)
+        {
+            _suppressMediaChanges = true;
+            foreach (var item in MediaItems)
+            {
+                item.SetSelectedSilently(false);
+            }
+            _suppressMediaChanges = false;
+            _batchMediaKind = null;
+        }
         _outputPathDirty = false;
         SetOutputPath(string.Empty);
         AppendLog("已清空当前模式下的勾选。");
@@ -358,6 +387,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             _modeSelectedOrders[mode].Clear();
         }
 
+        _batchMediaKind = null;
+
         _outputPathDirty = false;
         SetOutputPath(string.Empty);
     }
@@ -396,11 +427,16 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         OnPropertiesChanged(
             nameof(HasMedia),
             nameof(IsBatchOutput),
+            nameof(HasBatchSelection),
+            nameof(CanSelectAllBatch),
+            nameof(CanChooseOutput),
             nameof(CanRun),
             nameof(CanCancel),
             nameof(CanModifyInputs),
             nameof(CanMoveSelectedTrack),
             nameof(RunButtonText),
-            nameof(OutputBrowseLabel));
+            nameof(OutputBrowseLabel),
+            nameof(ImportButtonText),
+            nameof(SelectAllBatchLabel));
     }
 }

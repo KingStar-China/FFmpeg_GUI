@@ -6,6 +6,12 @@ public enum WorkMode
     Batch,
 }
 
+public enum BatchMediaKind
+{
+    Video,
+    Audio,
+}
+
 public enum SingleFileOperation
 {
     None,
