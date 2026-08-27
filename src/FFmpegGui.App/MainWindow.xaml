@@ -226,7 +226,8 @@
                                   CanUserReorderColumns="True"
                                   CanUserResizeColumns="True"
                                   CanUserSortColumns="True"
-                                  ColumnWidth="Auto"
+                                  ColumnWidth="*"
+                                  ColumnHeaderStyle="{DynamicResource CenteredDataGridColumnHeaderStyle}"
                                   HeadersVisibility="Column"
                                   GridLinesVisibility="Horizontal"
                                   SelectionMode="Single"
@@ -242,6 +243,11 @@
                                 <SolidColorBrush x:Key="DataGridRowSelectedForegroundThemeBrush" Color="#F8F4FF" />
                                 <Style x:Key="CenteredDataGridTextStyle" TargetType="TextBlock">
                                     <Setter Property="VerticalAlignment" Value="Center" />
+                                </Style>
+                                <Style x:Key="CenteredDataGridColumnHeaderStyle"
+                                       TargetType="DataGridColumnHeader"
+                                       BasedOn="{StaticResource DefaultDataGridColumnHeaderStyle}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Center" />
                                 </Style>
                             </DataGrid.Resources>
                             <DataGrid.CellStyle>
@@ -260,7 +266,7 @@
                                 </Style>
                             </DataGrid.RowStyle>
                             <DataGrid.Columns>
-                                <DataGridTemplateColumn Width="Auto" Header="保留">
+                                <DataGridTemplateColumn Width="*" Header="保留">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox HorizontalAlignment="Center"
@@ -274,11 +280,11 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Width="Auto" Header="来源" Binding="{Binding SourceLabel}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="Auto" Header="轨道" Binding="{Binding StreamIndex}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="Auto" Header="类型" Binding="{Binding KindDisplay}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="Auto" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTemplateColumn Width="Auto" Header="目标编码">
+                                <DataGridTextColumn Width="*" Header="来源" Binding="{Binding SourceLabel}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" Header="轨道" Binding="{Binding StreamIndex}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" Header="类型" Binding="{Binding KindDisplay}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTemplateColumn Width="*" Header="目标编码">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox MinWidth="0"
@@ -291,9 +297,9 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Width="Auto" Header="语言" Binding="{Binding Language}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" Header="语言" Binding="{Binding Language}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="*" Header="标题" Binding="{Binding Title}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="Auto" Header="标记" Binding="{Binding Flags}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" Header="标记" Binding="{Binding Flags}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </GroupBox>
