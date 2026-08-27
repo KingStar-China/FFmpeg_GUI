@@ -339,7 +339,11 @@ public sealed partial class MainWindowViewModel
         {
             if (operation == SingleFileOperation.Mux)
             {
-                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", "MP4（H.264 + AAC）"));
+                var audioCount = selectedTracks.Count(track => track.Kind == "audio" && !track.IsCover);
+                var mp4Label = audioCount > 1
+                    ? "MP4（H.264 + AAC 混音）"
+                    : "MP4（H.264 + AAC）";
+                OutputOptions.Add(OutputOptionViewModel.Mux("mp4", mp4Label));
                 OutputOptions.Add(OutputOptionViewModel.Mux("mkv", "MKV"));
             }
             else if (operation == SingleFileOperation.AudioMix)
@@ -481,7 +485,10 @@ public sealed partial class MainWindowViewModel
                  && selectedTracks.Any(track => track.Kind == "video" && !track.IsCover)
                  && selectedTracks.Any(track => track.Kind == "audio" && !track.IsCover))
         {
-            summary += "\nMP4 输出：H.264 视频 + AAC 音频；多条音频将混音为 1 条音频流。";
+            var audioCount = selectedTracks.Count(track => track.Kind == "audio" && !track.IsCover);
+            summary += audioCount > 1
+                ? "\nMP4 输出：H.264 + AAC 混音（多条音频合成为 1 条音频流）。"
+                : "\nMP4 输出：H.264 视频 + AAC 音频。";
         }
 
         SummaryText = summary;
