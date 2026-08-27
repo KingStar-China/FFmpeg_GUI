@@ -257,7 +257,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 StatusText = $"正在分析 {Path.GetFileName(path)}...";
                 var media = await _mediaInspector.InspectAsync(path, MediaItems.Count, cancellationToken);
-                MediaItems.Add(new MediaItemViewModel(media));
+                MediaItems.Add(new MediaItemViewModel(media, MediaItems.Count));
                 foreach (var track in media.Tracks)
                 {
                     Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));

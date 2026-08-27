@@ -3,9 +3,13 @@ using FFmpegGui.Core;
 
 namespace FFmpegGui.App.ViewModels;
 
-public sealed class MediaItemViewModel(MediaInfo media)
+public sealed class MediaItemViewModel(MediaInfo media, int sourceIndex)
 {
     public MediaInfo Media { get; } = media;
+
+    public int SourceIndex { get; } = sourceIndex;
+
+    public string SourceLabel => $"素材{SourceIndex + 1}";
 
     public string FileName => Media.FileName;
 
@@ -20,7 +24,7 @@ public sealed class MediaItemViewModel(MediaInfo media)
             var duration = Media.DurationSeconds is > 0
                 ? TimeSpan.FromSeconds(Media.DurationSeconds.Value).ToString(@"hh\:mm\:ss")
                 : "时长未知";
-            return $"{Media.FormatName} · {duration}";
+            return $"{SourceLabel}~{Media.FormatName} · {duration}";
         }
     }
 }
