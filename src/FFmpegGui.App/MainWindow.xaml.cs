@@ -1,10 +1,12 @@
 using System.ComponentModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using FFmpegGui.App.ViewModels;
 using Microsoft.Win32;
 
@@ -13,10 +15,20 @@ namespace FFmpegGui.App;
 public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel;
+    private readonly Dictionary<DataGridColumn, double> _trackColumnBaseMinWidths = [];
+    private bool _trackColumnSizingPending;
+    private bool _trackColumnSizingInProgress;
 
     public MainWindow()
     {
         InitializeComponent();
+        foreach (var column in TracksGrid.Columns)
+        {
+            _trackColumnBaseMinWidths[column] = column.MinWidth;
+        }
+
+        TracksGrid.Loaded += TracksGrid_Loaded;
+        TracksGrid.SizeChanged += TracksGrid_SizeChanged;
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
         if (File.Exists(iconPath))
         {
@@ -24,6 +36,100 @@ public partial class MainWindow : Window
         }
         _viewModel = new MainWindowViewModel(Dispatcher);
         DataContext = _viewModel;
+        _viewModel.Tracks.CollectionChanged += Tracks_CollectionChanged;
+    }
+
+    private void TracksGrid_Loaded(object sender, RoutedEventArgs e) => ScheduleTrackColumnSizing();
+
+    private void TracksGrid_SizeChanged(object sender, SizeChangedEventArgs e) => ScheduleTrackColumnSizing();
+
+    private void Tracks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => ScheduleTrackColumnSizing();
+
+    private void ScheduleTrackColumnSizing()
+    {
+        if (!IsLoaded || _trackColumnSizingPending)
+        {
+            return;
+        }
+
+        _trackColumnSizingPending = true;
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.ContextIdle,
+            new Action(() =>
+            {
+                _trackColumnSizingPending = false;
+                UpdateTrackColumnWidths();
+            }));
+    }
+
+    private void UpdateTrackColumnWidths()
+    {
+        if (_trackColumnSizingInProgress || TracksGrid.Columns.Count == 0)
+        {
+            return;
+        }
+
+        _trackColumnSizingInProgress = true;
+        try
+        {
+            TracksGrid.SetValue(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
+            foreach (var column in TracksGrid.Columns)
+            {
+                column.MinWidth = 0;
+                column.Width = DataGridLength.Auto;
+            }
+
+            TracksGrid.UpdateLayout();
+
+            var minimumWidths = TracksGrid.Columns
+                .Select(column => Math.Max(
+                    _trackColumnBaseMinWidths.GetValueOrDefault(column),
+                    column.ActualWidth))
+                .ToArray();
+            var autoWidthTotal = minimumWidths.Sum();
+            var scrollViewer = FindVisualChild<ScrollViewer>(TracksGrid);
+            var availableWidth = scrollViewer?.ViewportWidth ?? TracksGrid.ActualWidth;
+            var hasRemainingSpace = autoWidthTotal <= availableWidth + 0.5;
+
+            for (var index = 0; index < TracksGrid.Columns.Count; index++)
+            {
+                var column = TracksGrid.Columns[index];
+                column.MinWidth = minimumWidths[index];
+                column.Width = hasRemainingSpace
+                    ? new DataGridLength(1, DataGridLengthUnitType.Star)
+                    : DataGridLength.Auto;
+            }
+
+            TracksGrid.SetValue(
+                ScrollViewer.HorizontalScrollBarVisibilityProperty,
+                hasRemainingSpace ? ScrollBarVisibility.Auto : ScrollBarVisibility.Visible);
+            TracksGrid.UpdateLayout();
+        }
+        finally
+        {
+            _trackColumnSizingInProgress = false;
+        }
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            var descendant = FindVisualChild<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 
     private async void ImportMain_Click(object sender, RoutedEventArgs e)
@@ -147,7 +253,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Window_Closing(object? sender, CancelEventArgs e) => _viewModel.Dispose();
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        _viewModel.Tracks.CollectionChanged -= Tracks_CollectionChanged;
+        _viewModel.Dispose();
+    }
 
     private async Task LoadFilesAsync(IReadOnlyList<string> paths, bool replace)
     {

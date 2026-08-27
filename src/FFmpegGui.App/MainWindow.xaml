@@ -186,7 +186,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="230" MinWidth="190" />
                         <ColumnDefinition Width="6" />
-                        <ColumnDefinition Width="*" MinWidth="420" />
+                        <ColumnDefinition Width="*" MinWidth="520" />
                         <ColumnDefinition Width="6" />
                         <ColumnDefinition Width="350" MinWidth="320" MaxWidth="420" />
                     </Grid.ColumnDefinitions>
@@ -230,6 +230,8 @@
                                   ColumnHeaderStyle="{DynamicResource CenteredDataGridColumnHeaderStyle}"
                                   HeadersVisibility="Column"
                                   GridLinesVisibility="Horizontal"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   SelectionMode="Single"
                                   SelectionUnit="FullRow"
                                   PreviewMouseRightButtonDown="TracksGrid_PreviewMouseRightButtonDown">
@@ -251,12 +253,13 @@
                                        BasedOn="{StaticResource DefaultDataGridColumnHeaderStyle}">
                                     <Setter Property="HorizontalAlignment" Value="Stretch" />
                                     <Setter Property="HorizontalContentAlignment" Value="Center" />
-                                    <!-- Fluent 模板右侧预留排序指示器空间，增加左内边距抵消该偏移，让文字以整列为中心。 -->
-                                    <Setter Property="Padding" Value="18,0,4,0" />
+                                    <!-- Fluent 模板右侧预留排序指示器空间；保留必要的偏移补偿，避免窄列文字区被吃光。 -->
+                                    <Setter Property="Padding" Value="14,0,0,0" />
                                 </Style>
                             </DataGrid.Resources>
                             <DataGrid.CellStyle>
                                 <Style TargetType="DataGridCell" BasedOn="{StaticResource DefaultDataGridCellStyle}">
+                                    <Setter Property="Padding" Value="0" />
                                     <Setter Property="HorizontalContentAlignment" Value="Center" />
                                     <Setter Property="VerticalContentAlignment" Value="Center" />
                                 </Style>
@@ -273,10 +276,10 @@
                             </DataGrid.RowStyle>
                             <DataGrid.Columns>
                                 <!--
-                                    先由 * 按当前可用宽度平均分配；MinWidth 只负责兜底表头/控件的完整显示。
-                                    因此窗口最大化时各列基本等宽，窗口变窄时只有不够用的列会自动撑开。
+                                    先按表头和控件的自动最小宽度兜底；有剩余空间时由 * 平均分给每一列。
+                                    剩余空间为 0 或负数时保持这些最小宽度，并由 DataGrid 的水平滚动条承载超出部分。
                                 -->
-                                <DataGridTemplateColumn Width="*" MinWidth="40" Header="保留">
+                                <DataGridTemplateColumn Width="*" MinWidth="44" Header="保留">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <CheckBox HorizontalAlignment="Center"
@@ -290,11 +293,11 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="来源" Binding="{Binding SourceLabel}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="轨道" Binding="{Binding StreamIndex}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="类型" Binding="{Binding KindDisplay}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" MinWidth="64" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTemplateColumn Width="*" MinWidth="96" Header="目标编码">
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="来源" Binding="{Binding SourceLabel}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="轨道" Binding="{Binding StreamIndex}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="类型" Binding="{Binding KindDisplay}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="68" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTemplateColumn Width="*" MinWidth="100" Header="目标编码">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox MinWidth="0"
@@ -309,9 +312,9 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="语言" Binding="{Binding Language}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="标题" Binding="{Binding Title}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" MinWidth="40" Header="标记" Binding="{Binding Flags}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="语言" Binding="{Binding Language}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="标题" Binding="{Binding Title}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTextColumn Width="*" MinWidth="44" Header="标记" Binding="{Binding Flags}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </GroupBox>
