@@ -283,8 +283,8 @@
                                 <DataGridTextColumn Width="*" Header="来源" Binding="{Binding SourceLabel}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="*" Header="轨道" Binding="{Binding StreamIndex}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
                                 <DataGridTextColumn Width="*" Header="类型" Binding="{Binding KindDisplay}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTextColumn Width="*" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
-                                <DataGridTemplateColumn Width="*" Header="目标编码">
+                                <DataGridTextColumn Width="Auto" Header="Codec" Binding="{Binding Codec}" ElementStyle="{StaticResource CenteredDataGridTextStyle}" IsReadOnly="True" />
+                                <DataGridTemplateColumn Width="Auto" Header="目标编码">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <ComboBox MinWidth="0"
