@@ -8,6 +8,7 @@ public sealed partial class MainWindowViewModel
 {
     private sealed record BatchJobSpec(
         MediaInfo Media,
+        string Container,
         string OutputPath);
 
     public async Task<string?> RunCurrentJobAsync()
@@ -157,6 +158,7 @@ public sealed partial class MainWindowViewModel
                     _invocationFactory.CreateBatch(
                         spec.Media,
                         _batchMediaKind!.Value,
+                        spec.Container,
                         spec.OutputPath),
                     spec.OutputPath,
                     false,
@@ -209,13 +211,14 @@ public sealed partial class MainWindowViewModel
         }
 
         var kind = _batchMediaKind.Value;
+        var container = _selectedOutputOption?.Container ?? BatchPlanner.OutputContainer(kind);
         var reservedPaths = MediaItems
             .Select(item => Path.GetFullPath(item.InputPath))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var jobs = new List<BatchJobSpec>();
         foreach (var item in SelectedBatchMediaItems())
         {
-            var tracks = BatchPlanner.SelectOutputTracks(item.Media, kind);
+            var tracks = BatchPlanner.SelectOutputTracks(item.Media, kind, container);
             if (tracks.Count == 0)
             {
                 continue;
@@ -224,9 +227,10 @@ public sealed partial class MainWindowViewModel
             var outputPath = BatchPlanner.BuildOutputPath(
                 item.Media,
                 kind,
+                container,
                 OutputPath,
                 reservedPaths);
-            jobs.Add(new BatchJobSpec(item.Media, outputPath));
+            jobs.Add(new BatchJobSpec(item.Media, container, outputPath));
         }
 
         return jobs;

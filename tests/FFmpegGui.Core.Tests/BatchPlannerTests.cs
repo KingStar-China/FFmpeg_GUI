@@ -6,6 +6,24 @@ namespace FFmpegGui.Core.Tests;
 public sealed class BatchPlannerTests
 {
     [TestMethod]
+    public void ListOutputPresets_VideoUsesMp4AsDefaultAndLabelsEveryCodecPair()
+    {
+        var presets = BatchPlanner.ListOutputPresets(BatchMediaKind.Video);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "MP4（H.264 + AAC）",
+                "MKV（H.264 + AAC）",
+                "WebM（VP9 + Opus）",
+                "MOV（H.264 + AAC）",
+                "AVI（MPEG-4 + MP3）",
+            },
+            presets.Select(item => item.Label).ToArray());
+        Assert.AreEqual("mp4", BatchPlanner.OutputContainer(BatchMediaKind.Video));
+    }
+
+    [TestMethod]
     public void GetMediaKind_ClassifiesByFileInsteadOfExposingTracks()
     {
         var video = TestTracks.Media(
@@ -57,6 +75,7 @@ public sealed class BatchPlannerTests
         var arguments = BatchPlanner.BuildArguments(
             media,
             BatchMediaKind.Video,
+            "mp4",
             @"C:\Out\movie.mp4");
 
         AssertArgumentValue(arguments, "-c:v:0", "copy");
@@ -76,6 +95,7 @@ public sealed class BatchPlannerTests
         var arguments = BatchPlanner.BuildArguments(
             media,
             BatchMediaKind.Video,
+            "mp4",
             @"C:\Out\movie.mp4");
 
         AssertArgumentValue(arguments, "-c:v:0", "libx264");
@@ -97,6 +117,63 @@ public sealed class BatchPlannerTests
     }
 
     [TestMethod]
+    public void BuildArguments_MkvKeepsDefaultBitmapSubtitle()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "h264", 0),
+            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("subtitle", "hdmv_pgs_subtitle", 2, isDefault: true));
+
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Video,
+            "mkv",
+            @"C:\Out\movie.mkv");
+
+        AssertArgumentValue(arguments, "-c:v:0", "copy");
+        AssertArgumentValue(arguments, "-c:a:0", "copy");
+        AssertArgumentValue(arguments, "-c:s:0", "copy");
+    }
+
+    [TestMethod]
+    public void BuildArguments_WebmUsesVp9OpusAndWebVtt()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "h264", 0),
+            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("subtitle", "subrip", 2));
+
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Video,
+            "webm",
+            @"C:\Out\movie.webm");
+
+        AssertArgumentValue(arguments, "-c:v:0", "libvpx-vp9");
+        AssertArgumentValue(arguments, "-c:a:0", "libopus");
+        AssertArgumentValue(arguments, "-c:s:0", "webvtt");
+    }
+
+    [TestMethod]
+    public void BuildArguments_AviUsesMpeg4Mp3AndSkipsSubtitle()
+    {
+        var media = TestTracks.Media(
+            TestTracks.Create("video", "h264", 0),
+            TestTracks.Create("audio", "aac", 1),
+            TestTracks.Create("subtitle", "subrip", 2));
+
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Video,
+            "avi",
+            @"C:\Out\movie.avi");
+
+        AssertArgumentValue(arguments, "-c:v:0", "mpeg4");
+        AssertArgumentValue(arguments, "-c:a:0", "libmp3lame");
+        CollectionAssert.DoesNotContain(arguments.ToList(), "-c:s:0");
+    }
+
+    [TestMethod]
     public void SelectOutputTracks_AudioProducesSingleAacM4aJob()
     {
         var media = new MediaInfo(
@@ -108,7 +185,11 @@ public sealed class BatchPlannerTests
             [TestTracks.Create("audio", "flac", 0, 7, sourcePath: @"C:\Media\song.flac")]);
 
         var tracks = BatchPlanner.SelectOutputTracks(media, BatchMediaKind.Audio);
-        var arguments = BatchPlanner.BuildArguments(media, BatchMediaKind.Audio, @"C:\Out\song.m4a");
+        var arguments = BatchPlanner.BuildArguments(
+            media,
+            BatchMediaKind.Audio,
+            "m4a",
+            @"C:\Out\song.m4a");
 
         Assert.HasCount(1, tracks);
         Assert.AreEqual(0, tracks[0].SourceIndex);
@@ -132,8 +213,18 @@ public sealed class BatchPlannerTests
             Path.GetFullPath(media.InputPath),
         };
 
-        var first = BatchPlanner.BuildOutputPath(media, BatchMediaKind.Video, @"C:\Out", reserved);
-        var second = BatchPlanner.BuildOutputPath(media, BatchMediaKind.Video, @"C:\Out", reserved);
+        var first = BatchPlanner.BuildOutputPath(
+            media,
+            BatchMediaKind.Video,
+            "mp4",
+            @"C:\Out",
+            reserved);
+        var second = BatchPlanner.BuildOutputPath(
+            media,
+            BatchMediaKind.Video,
+            "mp4",
+            @"C:\Out",
+            reserved);
 
         Assert.AreEqual(@"C:\Out\clip.batch.mp4", first);
         Assert.AreEqual(@"C:\Out\clip.batch2.mp4", second);

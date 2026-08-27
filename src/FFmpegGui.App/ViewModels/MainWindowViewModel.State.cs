@@ -471,15 +471,17 @@ public sealed partial class MainWindowViewModel
         }
         else if (_batchMediaKind is not null)
         {
-            var container = BatchPlanner.OutputContainer(_batchMediaKind.Value);
-            OutputOptions.Add(OutputOptionViewModel.Mux(
-                container,
-                BatchPlanner.OutputLabel(_batchMediaKind.Value)));
+            foreach (var preset in BatchPlanner.ListOutputPresets(_batchMediaKind.Value))
+            {
+                OutputOptions.Add(OutputOptionViewModel.Mux(preset.Container, preset.Label));
+            }
         }
 
-        var selectedOption = operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix
+        var selectedOption = CurrentMode == WorkMode.Batch
             ? OutputOptions.FirstOrDefault(option => option.Container == _muxContainer)
-            : null;
+            : operation is SingleFileOperation.Mux or SingleFileOperation.AudioMix
+                ? OutputOptions.FirstOrDefault(option => option.Container == _muxContainer)
+                : null;
         selectedOption ??= OutputOptions.FirstOrDefault();
         _selectedOutputOption = selectedOption;
         OnPropertyChanged(nameof(SelectedOutputOption));
@@ -577,12 +579,12 @@ public sealed partial class MainWindowViewModel
             else
             {
                 var kindLabel = _batchMediaKind == BatchMediaKind.Video ? "视频" : "音频";
-                var outputLabel = BatchPlanner.OutputLabel(_batchMediaKind.Value);
+                var container = _selectedOutputOption?.Container
+                    ?? BatchPlanner.OutputContainer(_batchMediaKind.Value);
+                var outputLabel = BatchPlanner.OutputLabel(_batchMediaKind.Value, container);
                 SummaryText = $"共导入 {MediaItems.Count} 个文件，当前选择 {selectedFiles.Count} 个{kindLabel}文件。\n"
                     + $"批量输出：每个文件单独生成 1 个 {outputLabel} 文件。\n"
-                    + (_batchMediaKind == BatchMediaKind.Video
-                        ? "已符合 H.264/AAC/MOV_TEXT 的流会直接复制；否则只转换不符合的流，并保留 1 条默认文本软字幕。"
-                        : "AAC 音频会直接复制；其他音频只转换为 AAC。");
+                    + BatchPlanner.OutputDescription(_batchMediaKind.Value, container);
             }
 
             var batchIssues = CollectIssues();
@@ -640,9 +642,11 @@ public sealed partial class MainWindowViewModel
             }
 
             var batchIssues = new List<string>();
+            var container = _selectedOutputOption?.Container
+                ?? BatchPlanner.OutputContainer(_batchMediaKind.Value);
             foreach (var item in selectedFiles)
             {
-                if (BatchPlanner.SelectOutputTracks(item.Media, _batchMediaKind.Value).Count == 0)
+                if (BatchPlanner.SelectOutputTracks(item.Media, _batchMediaKind.Value, container).Count == 0)
                 {
                     batchIssues.Add($"{item.FileName} 没有可用于批量处理的主轨道。");
                 }
@@ -764,6 +768,7 @@ public sealed partial class MainWindowViewModel
                     BatchPlanner.BuildArguments(
                         first.Media,
                         _batchMediaKind!.Value,
+                        first.Container,
                         first.OutputPath));
                 var prefix = jobs.Count > 1 ? $"共 {jobs.Count} 个独立任务，以下为第 1 条：\n" : string.Empty;
                 CommandPreview = prefix + CommandLineFormatter.Format(invocation.Program, invocation.Arguments);

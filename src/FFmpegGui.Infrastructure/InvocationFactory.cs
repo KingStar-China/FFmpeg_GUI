@@ -17,10 +17,11 @@ public sealed class InvocationFactory(ToolLocator toolLocator)
     public ProcessInvocation CreateBatch(
         MediaInfo media,
         BatchMediaKind kind,
+        string outputContainer,
         string outputPath) =>
         new(
             toolLocator.RequireFfmpeg(),
-            BatchPlanner.BuildArguments(media, kind, outputPath));
+            BatchPlanner.BuildArguments(media, kind, outputContainer, outputPath));
 
     public ProcessInvocation CreateExtract(
         TrackInfo track,

@@ -12,6 +12,8 @@ public enum BatchMediaKind
     Audio,
 }
 
+public sealed record BatchOutputPreset(string Container, string Label);
+
 public enum SingleFileOperation
 {
     None,
