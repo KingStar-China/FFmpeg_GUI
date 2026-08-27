@@ -13,6 +13,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly MediaInspector _mediaInspector;
     private readonly InvocationFactory _invocationFactory;
     private readonly ProcessRunner _processRunner;
+    private readonly AppSettingsStore _settingsStore;
     private readonly Dispatcher _dispatcher;
     private readonly StringBuilder _logBuilder = new();
     private readonly Dictionary<WorkMode, HashSet<string>> _modeSelectedKeys = new()
@@ -48,9 +49,13 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private BatchMediaKind? _batchMediaKind;
     private CancellationTokenSource? _taskCancellation;
 
-    public MainWindowViewModel(Dispatcher dispatcher)
+    public MainWindowViewModel(
+        Dispatcher dispatcher,
+        AppSettingsStore? settingsStore = null)
     {
         _dispatcher = dispatcher;
+        _settingsStore = settingsStore ?? new AppSettingsStore();
+        _currentMode = _settingsStore.LoadWorkMode();
         _toolLocator = new ToolLocator();
         _mediaInspector = new MediaInspector(_toolLocator);
         _invocationFactory = new InvocationFactory(_toolLocator);
@@ -373,6 +378,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _settingsStore.SaveWorkMode(CurrentMode);
         _taskCancellation?.Cancel();
         _taskCancellation?.Dispose();
         _taskCancellation = null;

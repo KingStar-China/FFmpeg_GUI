@@ -14,6 +14,7 @@ public sealed partial class MainWindowViewModel
 
         PersistCurrentModeSelection();
         _currentMode = mode;
+        _settingsStore.SaveWorkMode(mode);
         OnPropertiesChanged(nameof(IsSingleFileMode), nameof(IsBatchMode));
         RestoreCurrentModeSelection();
         ApplySelectionConstraints(null);
