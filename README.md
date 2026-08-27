@@ -1,12 +1,12 @@
 # FFmpeg GUI
 
-当前稳定版是 `v0.2.1`，技术栈为 `C# + .NET 10 + WPF Fluent`。发布物只包含原生版；`app/` 中的 `Python + PySide6` 仅作为历史源码保留，不参与 release。
+当前稳定版是 `v0.2.2`，技术栈为 `C# + .NET 10 + WPF Fluent`。发布物只包含原生版；`app/` 中的 `Python + PySide6` 仅作为历史源码保留，不参与 release。
 
 ## 当前能力
 
 - 单文件：统一处理提取、转换、封装和混音；轨道表中的“目标编码”可逐轨选择，单轨输出格式跟随目标编码，多轨自动提供对应的容器或混音格式。
 - 音频混音：选择多条音频会通过 FFmpeg 混音为 1 条音频流，默认 M4A，并支持 MP3/AAC/WAV/FLAC/Opus。
-- 批量：入口已保留，暂未开放。
+- 批量：同类文件独立处理；视频支持 MP4、MKV、WebM、MOV、AVI，音频默认输出 M4A；兼容流直接复制，并保留一条容器支持的默认软字幕。
 - 原生体验：系统 Fluent 主题、文件拖放、异步任务、实时进度、日志和任务取消。
 - 安全检查：禁止覆盖输入文件，并在执行前显示规则校验与完整命令预览。
 
@@ -79,6 +79,6 @@ dotnet build .\src\FFmpegGui.App\FFmpegGui.App.csproj --configuration Release
 ## 稳定版下载
 
 - 当前版本：`artifacts\FFmpeg GUI Native win-x64\`
-- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.1>
+- Release 页面：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.2.2>
 - 原生目录版只包含一个入口 EXE；WPF 主程序以 DLL 形式提供，并随附 FFmpeg、FFprobe、mkvextract；首次启动会自动检测并引导安装 .NET 10 Desktop Runtime。
 - 旧版 `v0.1.1`：<https://github.com/KingStar-China/FFmpeg_GUI/releases/tag/v0.1.1>

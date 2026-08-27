@@ -119,7 +119,7 @@
                                 Background="#0F6CBD">
                             <TextBlock VerticalAlignment="Center"
                                        Foreground="White"
-                                       Text="v0.2.1" />
+                                       Text="v0.2.2" />
                         </Border>
                     </StackPanel>
                     <TextBlock Margin="0,4,0,0"

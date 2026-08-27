@@ -13,9 +13,14 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $project = Join-Path $repoRoot 'src\FFmpegGui.App\FFmpegGui.App.csproj'
 $launcherProject = Join-Path $repoRoot 'src\FFmpegGui.Launcher\FFmpegGui.Launcher.csproj'
+$buildProperties = [xml](Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'Directory.Build.props'))
+$version = [string]$buildProperties.Project.PropertyGroup.Version
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw 'Directory.Build.props 中缺少 Version。'
+}
 $artifactRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $portableDir = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg GUI Native $Runtime"))
-$portableZip = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg_GUI_v0.2.1_${Runtime}_native_portable.zip"))
+$portableZip = [IO.Path]::GetFullPath((Join-Path $artifactRoot "FFmpeg_GUI_v${version}_${Runtime}_native_portable.zip"))
 
 function Assert-ArtifactChildPath {
     param([Parameter(Mandatory)][string]$Path)

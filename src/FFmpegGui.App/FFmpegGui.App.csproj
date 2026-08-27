@@ -6,9 +6,6 @@
     <RootNamespace>FFmpegGui.App</RootNamespace>
     <AssemblyName>FFmpeg GUI.App</AssemblyName>
     <ApplicationIcon>../../app/assets/app.ico</ApplicationIcon>
-    <Version>0.2.1</Version>
-    <AssemblyVersion>0.2.1.0</AssemblyVersion>
-    <FileVersion>0.2.1.0</FileVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../FFmpegGui.Core/FFmpegGui.Core.csproj" />
