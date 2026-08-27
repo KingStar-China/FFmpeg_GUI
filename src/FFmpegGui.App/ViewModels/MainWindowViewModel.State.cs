@@ -308,14 +308,39 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
+        var shouldClear = AreAllBatchFilesSelected();
         _suppressMediaChanges = true;
         foreach (var item in MediaItems)
         {
-            item.SetSelectedSilently(item.BatchKind == _batchMediaKind);
+            if (item.BatchKind == _batchMediaKind)
+            {
+                item.SetSelectedSilently(!shouldClear);
+            }
         }
         _suppressMediaChanges = false;
+
+        if (shouldClear)
+        {
+            _batchMediaKind = null;
+            _outputPathDirty = false;
+            SetOutputPath(string.Empty);
+        }
+
         UpdateBatchMediaSelectability();
         RefreshState();
+    }
+
+    private bool AreAllBatchFilesSelected()
+    {
+        if (_batchMediaKind is null)
+        {
+            return false;
+        }
+
+        var matchingItems = MediaItems
+            .Where(item => item.BatchKind == _batchMediaKind)
+            .ToArray();
+        return matchingItems.Length > 0 && matchingItems.All(item => item.IsSelected);
     }
 
     private IReadOnlyList<MediaItemViewModel> SelectedBatchMediaItems() =>

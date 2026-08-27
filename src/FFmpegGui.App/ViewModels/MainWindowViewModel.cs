@@ -245,6 +245,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public string SelectAllBatchLabel => _batchMediaKind switch
     {
+        BatchMediaKind.Video when AreAllBatchFilesSelected() => "取消全选全部视频",
+        BatchMediaKind.Audio when AreAllBatchFilesSelected() => "取消全选全部音频",
         BatchMediaKind.Video => "全选全部视频",
         BatchMediaKind.Audio => "全选全部音频",
         _ => "全选同类文件",
