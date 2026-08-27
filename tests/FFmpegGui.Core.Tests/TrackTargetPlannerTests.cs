@@ -80,4 +80,19 @@ public sealed class TrackTargetPlannerTests
             SingleFileOperation.AudioMix,
             TrackTargetPlanner.Classify([voice, music], videoTargets));
     }
+
+    [TestMethod]
+    public void Classify_CoverTranscodeIsConversion()
+    {
+        var cover = TestTracks.Create("video", "mjpeg", isCover: true);
+        var target = TrackTargetPlanner.ListTargets(cover)
+            .Single(item => item.Id == "cover-png");
+
+        Assert.AreEqual(
+            SingleFileOperation.Convert,
+            TrackTargetPlanner.Classify([cover], new Dictionary<string, OutputTarget>
+            {
+                [cover.TrackKey] = target,
+            }));
+    }
 }

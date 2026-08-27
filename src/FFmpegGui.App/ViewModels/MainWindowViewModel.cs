@@ -293,7 +293,6 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
                     Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));
                 }
 
-                UpdateTrackKindLabels();
                 AppendLog($"[导入] {media.FileName}，共 {media.Tracks.Count} 条轨道。");
             }
             catch (Exception error) when (error is MediaInspectionException or ToolNotFoundException)
@@ -304,6 +303,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             }
         }
 
+        UpdateTrackKindLabels();
         RestoreCurrentModeSelection();
         ApplySelectionConstraints(null);
         SyncSelectedTrackOrder();

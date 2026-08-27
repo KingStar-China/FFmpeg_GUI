@@ -31,6 +31,7 @@ public sealed class ProcessRunner
         CancellationToken cancellationToken = default)
     {
         var processName = Path.GetFileNameWithoutExtension(job.Invocation.Program).ToLowerInvariant();
+        var outputExistedBeforeRun = File.Exists(job.OutputPath);
         var startInfo = new ProcessStartInfo
         {
             FileName = job.Invocation.Program,
@@ -62,7 +63,6 @@ public sealed class ProcessRunner
         var errorMarkerSeen = false;
         void HandleLine(string line)
         {
-            onOutput(line);
             if (ErrorMarkers.Any(marker => line.Contains(marker, StringComparison.OrdinalIgnoreCase)))
             {
                 errorMarkerSeen = true;
@@ -72,6 +72,11 @@ public sealed class ProcessRunner
             if (progress.HasValue)
             {
                 onProgress?.Invoke(progress.Value);
+            }
+
+            if (!ProgressParser.IsFfmpegProgressProtocolLine(line, processName))
+            {
+                onOutput(line);
             }
         }
 
@@ -91,6 +96,7 @@ public sealed class ProcessRunner
         {
             TryKill(process);
             await Task.WhenAll(standardOutputTask, standardErrorTask);
+            DeleteNewIncompleteOutput(job.OutputPath, outputExistedBeforeRun, onOutput);
             throw;
         }
         finally
@@ -100,9 +106,53 @@ public sealed class ProcessRunner
 
         await Task.WhenAll(standardOutputTask, standardErrorTask);
         var forcedCompletion = await coverMonitorTask;
-        var outputExists = File.Exists(job.OutputPath) && new FileInfo(job.OutputPath).Length > 0;
+        var outputExists = HasNonEmptyOutput(job.OutputPath);
         var success = (process.ExitCode == 0 && !errorMarkerSeen) || (forcedCompletion && outputExists);
+        if (!success)
+        {
+            DeleteNewIncompleteOutput(job.OutputPath, outputExistedBeforeRun, onOutput);
+        }
+
         return new ProcessRunResult(success, process.ExitCode, forcedCompletion, errorMarkerSeen);
+    }
+
+    private static bool HasNonEmptyOutput(string outputPath)
+    {
+        try
+        {
+            return File.Exists(outputPath) && new FileInfo(outputPath).Length > 0;
+        }
+        catch (Exception error) when (error is IOException
+                                      or UnauthorizedAccessException
+                                      or ArgumentException
+                                      or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static void DeleteNewIncompleteOutput(
+        string outputPath,
+        bool outputExistedBeforeRun,
+        Action<string> onOutput)
+    {
+        if (outputExistedBeforeRun || !File.Exists(outputPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Delete(outputPath);
+            onOutput($"[清理] 已删除本次任务产生的未完成文件：{outputPath}");
+        }
+        catch (Exception error) when (error is IOException
+                                      or UnauthorizedAccessException
+                                      or ArgumentException
+                                      or NotSupportedException)
+        {
+            onOutput($"[警告] 无法删除未完成文件：{error.Message}");
+        }
     }
 
     private static async Task PumpAsync(StreamReader reader, Action<string> onLine)

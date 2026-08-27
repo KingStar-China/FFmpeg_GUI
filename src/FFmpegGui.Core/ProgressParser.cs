@@ -5,6 +5,21 @@ namespace FFmpegGui.Core;
 
 public static partial class ProgressParser
 {
+    private static readonly HashSet<string> FfmpegProgressKeys = new(StringComparer.Ordinal)
+    {
+        "bitrate",
+        "drop_frames",
+        "dup_frames",
+        "fps",
+        "frame",
+        "out_time",
+        "out_time_ms",
+        "out_time_us",
+        "progress",
+        "speed",
+        "total_size",
+    };
+
     public static int? Parse(string payload, string processName, long totalDurationMilliseconds)
     {
         if (processName.Equals("mkvextract", StringComparison.OrdinalIgnoreCase))
@@ -34,14 +49,30 @@ public static partial class ProgressParser
             return null;
         }
 
-        var unit = numericMatches[^1].Groups[1].Value;
-        var milliseconds = unit == "us" ? amount / 1_000 : amount;
-        if (unit == "ms" && milliseconds > totalDurationMilliseconds * 100)
-        {
-            milliseconds = amount / 1_000;
-        }
+        // FFmpeg 的 progress 协议中 out_time_ms 历史上同样输出微秒值。
+        // 若把它按毫秒处理，短任务会在刚开始时错误跳到 99%。
+        var milliseconds = amount / 1_000;
 
         return Percentage(milliseconds, totalDurationMilliseconds);
+    }
+
+    public static bool IsFfmpegProgressProtocolLine(string payload, string processName)
+    {
+        if (!processName.Equals("ffmpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var separator = payload.IndexOf('=');
+        if (separator <= 0)
+        {
+            return false;
+        }
+
+        var key = payload[..separator].Trim();
+        return FfmpegProgressKeys.Contains(key)
+            || key.StartsWith("stream_", StringComparison.Ordinal)
+            && key.EndsWith("_q", StringComparison.Ordinal);
     }
 
     private static int Percentage(long currentMilliseconds, long totalDurationMilliseconds) =>

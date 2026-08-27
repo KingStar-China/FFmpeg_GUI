@@ -75,34 +75,41 @@ public sealed partial class MainWindowViewModel
     {
         if (!IsRunning)
         {
+            if (IsMp4OutputSelected())
+            {
+                ApplyMp4TargetDefault(changedTrack);
+            }
+
             RefreshState();
         }
     }
 
     private void UpdateTrackKindLabels()
     {
-        foreach (var track in Tracks)
+        var groups = Tracks.GroupBy(track => (
+            track.Track.SourceIndex,
+            track.Track.Kind,
+            track.Track.IsCover));
+        foreach (var group in groups)
         {
-            var siblings = Tracks
-                .Where(item => item.Track.SourceIndex == track.Track.SourceIndex
-                    && item.Track.Kind == track.Track.Kind
-                    && item.Track.IsCover == track.Track.IsCover)
+            var siblings = group
                 .OrderBy(item => item.Track.StreamIndex)
                 .ThenBy(item => item.TrackKey, StringComparer.Ordinal)
                 .ToArray();
-            var index = Array.FindIndex(siblings, item => item.TrackKey == track.TrackKey) + 1;
 
-            var label = track.Track.KindLabel;
-            if (!track.Track.IsCover && track.Track.Kind is "audio" or "subtitle")
+            for (var index = 0; index < siblings.Length; index++)
             {
-                label = $"{label}{Math.Max(index, 1)}";
-            }
-            else if (!track.Track.IsCover && track.Track.Kind == "video" && siblings.Length > 1)
-            {
-                label = $"{label}{Math.Max(index, 1)}";
-            }
+                var track = siblings[index];
+                var label = track.Track.KindLabel;
+                if (!track.Track.IsCover
+                    && (track.Track.Kind is "audio" or "subtitle"
+                        || track.Track.Kind == "video" && siblings.Length > 1))
+                {
+                    label = $"{label}{index + 1}";
+                }
 
-            track.SetKindDisplay(label);
+                track.SetKindDisplay(label);
+            }
         }
     }
 

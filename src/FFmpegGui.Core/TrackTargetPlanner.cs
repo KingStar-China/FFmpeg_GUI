@@ -39,8 +39,7 @@ public static class TrackTargetPlanner
 
         if (selectedTracks.Count == 1
             && targetByTrackKey.TryGetValue(selectedTracks[0].TrackKey, out var target)
-            && target.Mode == "transcode"
-            && !selectedTracks[0].IsCover)
+            && target.Mode == "transcode")
         {
             return SingleFileOperation.Convert;
         }

@@ -155,9 +155,10 @@ internal static class Program
     private static string? FindDotnetHostPath()
     {
         var candidates = new List<string>();
+        AddDotnetHostCandidate(candidates, Environment.GetEnvironmentVariable("DOTNET_ROOT_X64"));
         AddDotnetHostCandidate(candidates, Environment.GetEnvironmentVariable("DOTNET_ROOT"));
-        AddDotnetHostCandidate(candidates, Environment.GetEnvironmentVariable("ProgramW6432"));
-        AddDotnetHostCandidate(candidates, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddDotnetInstallRootCandidate(candidates, Environment.GetEnvironmentVariable("ProgramW6432"));
+        AddDotnetInstallRootCandidate(candidates, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
         AddDotnetHostCandidate(
             candidates,
             Path.Combine(
@@ -194,6 +195,14 @@ internal static class Program
         if (!string.IsNullOrWhiteSpace(root))
         {
             candidates.Add(Path.Combine(root, "dotnet.exe"));
+        }
+    }
+
+    private static void AddDotnetInstallRootCandidate(ICollection<string> candidates, string? root)
+    {
+        if (!string.IsNullOrWhiteSpace(root))
+        {
+            candidates.Add(Path.Combine(root, "dotnet", "dotnet.exe"));
         }
     }
 
