@@ -174,14 +174,6 @@
                                   SelectionMode="Single"
                                   SelectionUnit="FullRow"
                                   PreviewMouseRightButtonDown="TracksGrid_PreviewMouseRightButtonDown">
-                            <DataGrid.Resources>
-                                <Style TargetType="DataGridColumnHeader">
-                                    <Setter Property="HorizontalContentAlignment" Value="Center" />
-                                    <Setter Property="VerticalContentAlignment" Value="Center" />
-                                    <Setter Property="Padding" Value="8,0" />
-                                    <Setter Property="MinHeight" Value="36" />
-                                </Style>
-                            </DataGrid.Resources>
                             <DataGrid.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="按当前模式全选" Click="SelectAll_Click" />
