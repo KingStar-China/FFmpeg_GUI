@@ -118,7 +118,7 @@
                                 Background="#0F6CBD">
                             <TextBlock VerticalAlignment="Center"
                                        Foreground="White"
-                                       Text="Windows 原生版 · v0.2.0" />
+                                       Text="v0.2.0" />
                         </Border>
                     </StackPanel>
                     <TextBlock Margin="0,4,0,0"
