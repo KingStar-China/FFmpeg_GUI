@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using FFmpegGui.Core;
 
 namespace FFmpegGui.App.ViewModels;
@@ -32,7 +33,24 @@ public sealed class MediaItemViewModel : ObservableObject
 
     public string FileName => Media.FileName;
 
-    public string FormatName => Media.FormatName;
+    public string FormatName
+    {
+        get
+        {
+            var extension = Path.GetExtension(Media.InputPath).TrimStart('.');
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                return extension.ToLowerInvariant();
+            }
+
+            var detectedFormat = Media.FormatName
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .FirstOrDefault();
+            return string.IsNullOrWhiteSpace(detectedFormat)
+                ? "未知"
+                : detectedFormat.ToLowerInvariant();
+        }
+    }
 
     public string InputPath => Media.InputPath;
 
@@ -102,7 +120,7 @@ public sealed class MediaItemViewModel : ObservableObject
             var duration = Media.DurationSeconds is > 0
                 ? TimeSpan.FromSeconds(Media.DurationSeconds.Value).ToString(@"hh\:mm\:ss")
                 : "时长未知";
-            return $"{SourceLabel}~{Media.FormatName} · {duration}";
+            return $"{SourceLabel}~{FormatName} · {duration}";
         }
     }
 }
