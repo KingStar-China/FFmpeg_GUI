@@ -41,6 +41,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private int _progressValue;
     private bool _isProgressIndeterminate;
     private bool _isRunning;
+    private bool _isLoadingMedia;
     private bool _outputPathDirty;
     private bool _settingOutputPath;
     private bool _refreshing;
@@ -237,7 +238,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool CanCancel => IsRunning;
 
-    public bool CanModifyInputs => !IsRunning;
+    public bool CanModifyInputs => !IsRunning && !_isLoadingMedia;
 
     public bool CanMoveSelectedTrack =>
         !IsRunning && CurrentMode == WorkMode.SingleFile && SelectedOrderItem is not null;
@@ -269,47 +270,79 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             return ["任务执行中，不能修改输入文件。"];
         }
 
-        var validPaths = paths.Where(File.Exists).ToArray();
-        if (validPaths.Length == 0)
+        if (_isLoadingMedia)
         {
+            AppendLog("[忽略] 正在分析上一批文件，本次重复导入请求已忽略。");
             return [];
         }
 
-        if (replace)
+        _isLoadingMedia = true;
+        RaiseActionState();
+        try
         {
-            ResetMediaState();
-        }
-
-        var errors = new List<string>();
-        foreach (var path in validPaths)
-        {
-            try
+            var selection = InputFilePlanner.SelectDistinctExistingFiles(
+                paths,
+                replace ? [] : MediaItems.Select(item => item.InputPath));
+            if (selection.DuplicateCount > 0)
             {
-                StatusText = $"正在分析 {Path.GetFileName(path)}...";
-                var media = await _mediaInspector.InspectAsync(path, MediaItems.Count, cancellationToken);
-                MediaItems.Add(new MediaItemViewModel(media, MediaItems.Count, OnMediaSelectionChanged));
-                foreach (var track in media.Tracks)
+                AppendLog($"[去重] 已忽略 {selection.DuplicateCount} 个重复文件。");
+            }
+
+            if (selection.Paths.Count == 0)
+            {
+                if (selection.DuplicateCount > 0)
                 {
-                    Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));
+                    StatusText = $"已忽略 {selection.DuplicateCount} 个重复文件";
                 }
 
-                AppendLog($"[导入] {media.FileName}，共 {media.Tracks.Count} 条轨道。");
+                return [];
             }
-            catch (Exception error) when (error is MediaInspectionException or ToolNotFoundException)
-            {
-                var message = $"{Path.GetFileName(path)}：{error.Message}";
-                errors.Add(message);
-                AppendLog($"[错误] {path}\n{error.Message}");
-            }
-        }
 
-        UpdateTrackKindLabels();
-        RestoreCurrentModeSelection();
-        ApplySelectionConstraints(null);
-        SyncSelectedTrackOrder();
-        StatusText = errors.Count == 0 ? $"已导入 {validPaths.Length} 个文件" : "部分文件导入失败";
-        RefreshState();
-        return errors;
+            if (replace)
+            {
+                ResetMediaState();
+            }
+
+            var errors = new List<string>();
+            foreach (var path in selection.Paths)
+            {
+                try
+                {
+                    StatusText = $"正在分析 {Path.GetFileName(path)}...";
+                    var media = await _mediaInspector.InspectAsync(path, MediaItems.Count, cancellationToken);
+                    MediaItems.Add(new MediaItemViewModel(media, MediaItems.Count, OnMediaSelectionChanged));
+                    foreach (var track in media.Tracks)
+                    {
+                        Tracks.Add(new TrackItemViewModel(track, OnTrackSelectionChanged, OnTrackTargetChanged));
+                    }
+
+                    AppendLog($"[导入] {media.FileName}，共 {media.Tracks.Count} 条轨道。");
+                }
+                catch (Exception error) when (error is MediaInspectionException or ToolNotFoundException)
+                {
+                    var message = $"{Path.GetFileName(path)}：{error.Message}";
+                    errors.Add(message);
+                    AppendLog($"[错误] {path}\n{error.Message}");
+                }
+            }
+
+            UpdateTrackKindLabels();
+            RestoreCurrentModeSelection();
+            ApplySelectionConstraints(null);
+            SyncSelectedTrackOrder();
+            StatusText = errors.Count == 0
+                ? selection.DuplicateCount > 0
+                    ? $"已导入 {selection.Paths.Count} 个文件，忽略 {selection.DuplicateCount} 个重复文件"
+                    : $"已导入 {selection.Paths.Count} 个文件"
+                : "部分文件导入失败";
+            RefreshState();
+            return errors;
+        }
+        finally
+        {
+            _isLoadingMedia = false;
+            RaiseActionState();
+        }
     }
 
     public void ClearMedia()
